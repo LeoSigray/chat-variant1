@@ -1,0 +1,7 @@
+# собранные программы (Windows-сборку делает GitHub Actions, см. вкладку Actions)
+/server
+/client
+*.exe
+*.o
+*.obj
+*.log
