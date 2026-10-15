@@ -7,6 +7,9 @@ import socket
 import sys
 import time
 
+if hasattr(sys.stdout, "reconfigure"):               # консоль Windows бывает в cp1251/cp1252
+    sys.stdout.reconfigure(encoding="utf-8")
+
 PORT = int(sys.argv[1])
 failed = []
 
