@@ -72,7 +72,7 @@ typedef char chat_requires_utf8_string_literals[(sizeof("Ж") == 3) ? 1 : -1];
 #endif
 
 /* ---------- Параметры чата ---------- */
-#define DEFAULT_PORT    5555
+#define DEFAULT_PORT    5777
 #define MAX_CLIENTS     32          /* одновременно подключённых клиентов   */
 #define NAME_MAX_CHARS  16          /* максимум символов в имени            */
 #define NAME_MAX_BYTES  (NAME_MAX_CHARS * 4)   /* то же в байтах UTF-8      */

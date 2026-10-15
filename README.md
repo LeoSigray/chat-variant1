@@ -106,7 +106,7 @@ gcc -std=c99 -Wall -Wextra -O2 -pthread -o client client.c common.c
 
 ## Запуск на двух компьютерах
 
-1. **На компьютере-сервере** запустите сервер (порт по умолчанию 5555):
+1. **На компьютере-сервере** запустите сервер (порт по умолчанию 5777):
 
    ```
    server.exe            (Windows)
@@ -122,10 +122,10 @@ gcc -std=c99 -Wall -Wextra -O2 -pthread -o client client.c common.c
      для частных сетей. Либо выполните в консоли от имени администратора:
 
      ```bat
-     netsh advfirewall firewall add rule name="Chat server" dir=in action=allow protocol=TCP localport=5555
+     netsh advfirewall firewall add rule name="Chat server" dir=in action=allow protocol=TCP localport=5777
      ```
 
-   * Linux (ufw): `sudo ufw allow 5555/tcp`
+   * Linux (ufw): `sudo ufw allow 5777/tcp`
 
 3. **На компьютере-клиенте** запустите клиент, указав IP сервера:
 
@@ -149,7 +149,7 @@ gcc -std=c99 -Wall -Wextra -O2 -pthread -o client client.c common.c
 ```
 === Клиент чата ===
 Введите ваше имя для чата (одно слово): Иван
-Подключение к 192.168.1.10:5555...
+Подключение к 192.168.1.10:5777...
 Соединение установлено.
 [Сервер] Добро пожаловать в чат!
 [Сервер] Представьтесь командой: #NewName <имя>
