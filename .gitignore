@@ -5,3 +5,8 @@
 *.o
 *.obj
 *.log
+
+# настольное приложение
+desktop/.venv/
+__pycache__/
+.DS_Store
