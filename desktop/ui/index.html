@@ -557,6 +557,7 @@ class FakeServer {
       try {
         const found = await (await api()).list_com_ports();
         comOptions.replaceChildren(...(found.ports || []).map((port) => el('option', null, port)));
+        if (!comI.value && found.recommended) comI.value = found.recommended;
       } catch (e) {}
     }
     if (!connected) (s.name ? goBtn : nameI).focus();

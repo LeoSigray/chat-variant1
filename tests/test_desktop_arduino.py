@@ -30,6 +30,25 @@ assert chat_app.zabor_chat_line("строка без имени") is None
 
 assert chat_app.DEFAULT_SETTINGS["com_port"] == ""
 
+arduino_port = types.SimpleNamespace(
+    device="/dev/cu.usbmodem1101", description="Arduino Leonardo",
+    manufacturer="Arduino LLC", hwid="USB VID:PID=2341:8036",
+)
+bluetooth_port = types.SimpleNamespace(
+    device="/dev/cu.Bluetooth-Incoming-Port", description="Bluetooth",
+    manufacturer=None, hwid="n/a",
+)
+assert chat_app.recommend_com_port([bluetooth_port, arduino_port]) == "/dev/cu.usbmodem1101"
+assert chat_app.recommend_com_port([bluetooth_port]) is None
+assert chat_app.recommend_com_port([
+    arduino_port,
+    types.SimpleNamespace(device="/dev/cu.usbmodem1201", description="USB modem", manufacturer=None, hwid="n/a"),
+]) == "/dev/cu.usbmodem1101"
+assert chat_app.recommend_com_port([
+    arduino_port,
+    types.SimpleNamespace(device="/dev/cu.usbmodem1201", description="Arduino Uno", manufacturer="Arduino", hwid="VID:PID=2341:0043"),
+]) is None
+
 
 class FakePort:
     def __init__(self):

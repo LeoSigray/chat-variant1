@@ -156,11 +156,29 @@ class ArduinoOutput:
                 pass
 
 
-def list_com_ports():
-    """Возвращает доступные последовательные порты; без pyserial — пустой список."""
+def recommend_com_port(ports):
+    """Выбирает порт Arduino только когда выбор однозначен."""
+    strong = []
+    weak = []
+    for port in ports:
+        device = str(getattr(port, "device", ""))
+        info = " ".join(str(getattr(port, field, "") or "") for field in ("description", "manufacturer", "hwid")).lower()
+        if ("arduino" in info or "leonardo" in info or "vid:pid=2341:" in info or "vid:pid=2a03:" in info):
+            strong.append(device)
+        elif "usbmodem" in device.lower() or "ttyacm" in device.lower():
+            weak.append(device)
+    if len(strong) == 1:
+        return strong[0]
+    if not strong and len(weak) == 1:
+        return weak[0]
+    return None
+
+
+def scan_com_ports():
+    """Возвращает записи последовательных портов; без pyserial — пустой список."""
     try:
         from serial.tools import list_ports
-        return [port.device for port in list_ports.comports()]
+        return list(list_ports.comports())
     except Exception:
         return []
 
@@ -327,7 +345,12 @@ class Api:
         return {"ok": True}
 
     def list_com_ports(self):
-        return {"ok": True, "ports": list_com_ports()}
+        records = scan_com_ports()
+        return {
+            "ok": True,
+            "ports": [port.device for port in records],
+            "recommended": recommend_com_port(records),
+        }
 
     # --- чат ---
     def connect(self, name, host, port, com_port=""):
