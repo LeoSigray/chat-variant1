@@ -397,6 +397,7 @@ typedef HANDLE serial_handle_t;
 static CRITICAL_SECTION   g_ser_lock;
 static CONDITION_VARIABLE g_ser_cond;
 static HANDLE             g_ser_thread;
+static INIT_ONCE           g_ser_once = INIT_ONCE_STATIC_INIT;
 #else
 typedef int serial_handle_t;
 #  define SERIAL_NONE (-1)
@@ -415,9 +416,27 @@ static int   g_ser_errcode;                  /* код ошибки послед
 static serial_eol_t g_ser_eol = EOL_LF;
 static int   g_ser_translit;
 
+#ifdef _WIN32
+static BOOL CALLBACK ser_init_once(PINIT_ONCE once, PVOID param, PVOID *context)
+{
+    (void)once;
+    (void)param;
+    (void)context;
+    InitializeCriticalSection(&g_ser_lock);
+    InitializeConditionVariable(&g_ser_cond);
+    return TRUE;
+}
+
+static void ser_sync_init(void)
+{
+    InitOnceExecuteOnce(&g_ser_once, ser_init_once, NULL, NULL);
+}
+#endif
+
 static void ser_lock(void)
 {
 #ifdef _WIN32
+    ser_sync_init();
     EnterCriticalSection(&g_ser_lock);
 #else
     pthread_mutex_lock(&g_ser_lock);
@@ -598,16 +617,6 @@ static int baud_to_speed(int baud, speed_t *out)
 int serial_open(const char *name, int baud, char *err, size_t err_size)
 {
     int already;
-#ifdef _WIN32
-    {
-        static int inited = 0;
-        if (!inited) {
-            InitializeCriticalSection(&g_ser_lock);
-            InitializeConditionVariable(&g_ser_cond);
-            inited = 1;
-        }
-    }
-#endif
     ser_lock();
     already = g_ser_running;
     ser_unlock();

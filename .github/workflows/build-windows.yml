@@ -22,6 +22,12 @@ jobs:
           gcc -std=c99 -Wall -Wextra -pedantic -O2 -o server.exe server.c common.c -lws2_32
           gcc -std=c99 -Wall -Wextra -pedantic -O2 -o client.exe client.c common.c -lws2_32
 
+      - name: Test client without Arduino
+        shell: msys2 {0}
+        run: |
+          gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -I. -o test_serial_disabled.exe tests/test_serial_disabled.c common.c -lws2_32
+          ./test_serial_disabled.exe
+
       # файлы выкладываем до теста: если тест упадёт, exe всё равно можно скачать
       - uses: actions/upload-artifact@v4
         with:
@@ -33,6 +39,7 @@ jobs:
       - name: Smoke test (server.exe on Windows)
         shell: pwsh
         run: |
+          .\server.exe --list-com
           $srv = Start-Process -FilePath .\server.exe -ArgumentList 55555 -PassThru -RedirectStandardOutput server.log
           Start-Sleep -Seconds 2
           try { python tests/smoke_test.py 55555 } finally { Stop-Process -Id $srv.Id -Force; Get-Content server.log }
