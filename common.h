@@ -124,6 +124,24 @@ void con_vprint(color_t color, const char *fmt, va_list ap) CHAT_PRINTF(2, 0);
 void con_lock(void);
 void con_unlock(void);
 
+/* ---------- COM-порт (лабораторная 2) ----------
+ * Сообщения кладутся в очередь, а отдельный поток пишет их в порт: медленный
+ * порт (9600 бод) не должен тормозить сервер или клиент. */
+#define SERIAL_DEFAULT_BAUD 9600
+
+typedef enum { EOL_NONE = 0, EOL_LF, EOL_CRLF, EOL_CR } serial_eol_t;
+
+int  serial_open(const char *name, int baud, char *err, size_t err_size);  /* 0 — успех */
+void serial_close(void);
+int  serial_enabled(void);                     /* порт открыт и пересылка работает */
+void serial_set_eol(serial_eol_t eol);         /* чем заканчивать строку (по умолчанию LF) */
+void serial_set_translit(int on);              /* кириллица -> латиница (для дисплея без кириллицы) */
+void serial_send_line(const char *utf8_text);  /* поставить строку в очередь, не блокирует */
+void serial_list(void);                        /* показать доступные COM-порты */
+void translit_ru(const char *utf8, char *out, size_t out_size);
+void zabor_utf8(const char *utf8, char *out, size_t out_size); /* ПрИвЕт МиР */
+int  zabor_chat_line(const char *line, char *out, size_t out_size);
+
 /* ---------- Строки и UTF-8 ---------- */
 int    is_space_char(char c);
 char  *str_trim(char *s);                         /* обрезает пробелы с обеих сторон */

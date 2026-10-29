@@ -8,12 +8,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <time.h>
 
 #ifdef _WIN32
 #  include <mstcpip.h>              /* SIO_KEEPALIVE_VALS */
 #else
 #  include <pthread.h>
 #  include <fcntl.h>
+#  include <poll.h>
+#  include <dirent.h>
+#  include <termios.h>              /* настройка последовательного порта */
 #  include <netinet/tcp.h>          /* TCP_KEEPIDLE и др. */
 #  ifndef MSG_NOSIGNAL
 #    define MSG_NOSIGNAL 0          /* на macOS нет — там SIGPIPE игнорируется */
@@ -381,6 +385,524 @@ void con_print(color_t color, const char *fmt, ...)
 }
 
 /* ======================================================================
+ *                 COM-порт: пересылка сообщений чата на плату
+ * ====================================================================== */
+
+#define SERIAL_QUEUE_LEN 64     /* строк в очереди; при переполнении старые отбрасываются */
+#define SERIAL_RESET_MS  2000   /* плата Arduino перезагружается при открытии порта */
+
+#ifdef _WIN32
+typedef HANDLE serial_handle_t;
+#  define SERIAL_NONE INVALID_HANDLE_VALUE
+static CRITICAL_SECTION   g_ser_lock;
+static CONDITION_VARIABLE g_ser_cond;
+static HANDLE             g_ser_thread;
+#else
+typedef int serial_handle_t;
+#  define SERIAL_NONE (-1)
+static pthread_mutex_t g_ser_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  g_ser_cond = PTHREAD_COND_INITIALIZER;
+static pthread_t       g_ser_thread;
+#endif
+
+static serial_handle_t g_ser = SERIAL_NONE;
+static char *g_ser_queue[SERIAL_QUEUE_LEN];
+static int   g_ser_head, g_ser_count;        /* голова и число строк в очереди               */
+static int   g_ser_running, g_ser_stop;      /* поток запущен / просьба остановиться         */
+static int   g_ser_failed;                   /* запись не удалась — порт больше не используем */
+static int   g_ser_warned_drop;
+static int   g_ser_errcode;                  /* код ошибки последней неудачной записи        */
+static serial_eol_t g_ser_eol = EOL_LF;
+static int   g_ser_translit;
+
+static void ser_lock(void)
+{
+#ifdef _WIN32
+    EnterCriticalSection(&g_ser_lock);
+#else
+    pthread_mutex_lock(&g_ser_lock);
+#endif
+}
+
+static void ser_unlock(void)
+{
+#ifdef _WIN32
+    LeaveCriticalSection(&g_ser_lock);
+#else
+    pthread_mutex_unlock(&g_ser_lock);
+#endif
+}
+
+static void ser_wait(void)                   /* вызывать под блокировкой */
+{
+#ifdef _WIN32
+    SleepConditionVariableCS(&g_ser_cond, &g_ser_lock, INFINITE);
+#else
+    pthread_cond_wait(&g_ser_cond, &g_ser_lock);
+#endif
+}
+
+static void ser_wake(void)
+{
+#ifdef _WIN32
+    WakeAllConditionVariable(&g_ser_cond);
+#else
+    pthread_cond_broadcast(&g_ser_cond);
+#endif
+}
+
+static void sleep_ms(unsigned ms)
+{
+#ifdef _WIN32
+    Sleep(ms);
+#else
+    struct timespec ts;
+    ts.tv_sec = ms / 1000;
+    ts.tv_nsec = (long)(ms % 1000) * 1000000L;
+    nanosleep(&ts, NULL);
+#endif
+}
+
+static int ser_stopping(void)
+{
+    int s;
+    ser_lock();
+    s = g_ser_stop;
+    ser_unlock();
+    return s;
+}
+
+/* Записать всё. 0 — успех, 1 — просили остановиться, -1 — ошибка (код в g_ser_errcode).
+ * Запись не блокируется надолго: так поток можно остановить, даже если плата молчит. */
+static int ser_write_all(const char *data, size_t len)
+{
+#ifdef _WIN32
+    while (len > 0) {
+        DWORD n = 0;
+        if (!WriteFile(g_ser, data, (DWORD)len, &n, NULL)) {
+            g_ser_errcode = (int)GetLastError();
+            return -1;
+        }
+        data += n;
+        len -= n;
+        if (len > 0 && ser_stopping())      /* тайм-аут записи (см. COMMTIMEOUTS) */
+            return 1;
+    }
+    return 0;
+#else
+    while (len > 0) {
+        ssize_t n = write(g_ser, data, len);
+        if (n > 0) {
+            data += n;
+            len -= (size_t)n;
+            continue;
+        }
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            struct pollfd p;
+            p.fd = g_ser;
+            p.events = POLLOUT;
+            p.revents = 0;
+            poll(&p, 1, 200);
+            if (ser_stopping())
+                return 1;
+            continue;
+        }
+        g_ser_errcode = errno;
+        return -1;
+    }
+    return 0;
+#endif
+}
+
+#ifdef _WIN32
+static DWORD WINAPI ser_thread_main(LPVOID arg)
+#else
+static void *ser_thread_main(void *arg)
+#endif
+{
+    int waited;
+    (void)arg;
+
+    /* Arduino перезагружается, когда порт открывают: первые байты потерялись бы */
+    for (waited = 0; waited < SERIAL_RESET_MS && !ser_stopping(); waited += 100)
+        sleep_ms(100);
+
+    for (;;) {
+        char *line;
+        int rc, i;
+
+        ser_lock();
+        while (g_ser_count == 0 && !g_ser_stop)
+            ser_wait();
+        if (g_ser_stop) {
+            ser_unlock();
+            break;
+        }
+        line = g_ser_queue[g_ser_head];
+        g_ser_queue[g_ser_head] = NULL;
+        g_ser_head = (g_ser_head + 1) % SERIAL_QUEUE_LEN;
+        g_ser_count--;
+        ser_unlock();
+
+        rc = ser_write_all(line, strlen(line));
+        free(line);
+        if (rc > 0)
+            break;
+        if (rc < 0) {
+            ser_lock();
+            g_ser_failed = 1;
+            for (i = 0; i < SERIAL_QUEUE_LEN; i++) {
+                free(g_ser_queue[i]);
+                g_ser_queue[i] = NULL;
+            }
+            g_ser_count = 0;
+            ser_unlock();
+            con_print(CLR_ERROR, "[COM] Ошибка записи в порт: %s. Пересылка остановлена.\n",
+#ifdef _WIN32
+                      net_strerror(g_ser_errcode));
+#else
+                      strerror(g_ser_errcode));
+#endif
+            break;
+        }
+    }
+#ifdef _WIN32
+    return 0;
+#else
+    return NULL;
+#endif
+}
+
+#ifndef _WIN32
+static int baud_to_speed(int baud, speed_t *out)
+{
+    switch (baud) {
+    case 1200:   *out = B1200;   return 1;
+    case 2400:   *out = B2400;   return 1;
+    case 4800:   *out = B4800;   return 1;
+    case 9600:   *out = B9600;   return 1;
+    case 19200:  *out = B19200;  return 1;
+    case 38400:  *out = B38400;  return 1;
+    case 57600:  *out = B57600;  return 1;
+    case 115200: *out = B115200; return 1;
+#  ifdef B230400
+    case 230400: *out = B230400; return 1;
+#  endif
+    default:     return 0;
+    }
+}
+#endif
+
+int serial_open(const char *name, int baud, char *err, size_t err_size)
+{
+    int already;
+#ifdef _WIN32
+    {
+        static int inited = 0;
+        if (!inited) {
+            InitializeCriticalSection(&g_ser_lock);
+            InitializeConditionVariable(&g_ser_cond);
+            inited = 1;
+        }
+    }
+#endif
+    ser_lock();
+    already = g_ser_running;
+    ser_unlock();
+    if (already) {
+        snprintf(err, err_size, "COM-порт уже открыт");
+        return -1;
+    }
+
+#ifdef _WIN32
+    {
+        char path[300];
+        DCB dcb;
+        COMMTIMEOUTS to;
+        HANDLE h;
+
+        /* для COM10 и выше обязательна форма "\\.\COM10"; она подходит и для COM1..COM9 */
+        if (name[0] == '\\')
+            snprintf(path, sizeof(path), "%s", name);
+        else
+            snprintf(path, sizeof(path), "\\\\.\\%s", name);
+        h = CreateFileA(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (h == INVALID_HANDLE_VALUE) {
+            snprintf(err, err_size, "не удалось открыть %s: %s", name, net_strerror((int)GetLastError()));
+            return -1;
+        }
+        memset(&dcb, 0, sizeof(dcb));
+        dcb.DCBlength = sizeof(dcb);
+        if (!GetCommState(h, &dcb)) {
+            snprintf(err, err_size, "%s не похож на COM-порт: %s", name, net_strerror((int)GetLastError()));
+            CloseHandle(h);
+            return -1;
+        }
+        dcb.BaudRate = (DWORD)baud;
+        dcb.ByteSize = 8;
+        dcb.Parity = NOPARITY;
+        dcb.StopBits = ONESTOPBIT;
+        dcb.fBinary = TRUE;
+        dcb.fParity = FALSE;
+        dcb.fOutxCtsFlow = FALSE;
+        dcb.fOutxDsrFlow = FALSE;
+        dcb.fDtrControl = DTR_CONTROL_ENABLE;
+        dcb.fRtsControl = RTS_CONTROL_ENABLE;
+        dcb.fOutX = FALSE;
+        dcb.fInX = FALSE;
+        if (!SetCommState(h, &dcb)) {
+            snprintf(err, err_size, "не удалось настроить %s (%d бод): %s", name, baud, net_strerror((int)GetLastError()));
+            CloseHandle(h);
+            return -1;
+        }
+        memset(&to, 0, sizeof(to));
+        to.WriteTotalTimeoutConstant = 500;     /* запись не зависает навсегда */
+        SetCommTimeouts(h, &to);
+        g_ser = h;
+    }
+#else
+    {
+        struct termios tio;
+        speed_t speed;
+        int fd;
+
+        if (!baud_to_speed(baud, &speed)) {
+            snprintf(err, err_size, "скорость %d бод не поддерживается (1200..115200)", baud);
+            return -1;
+        }
+        fd = open(name, O_WRONLY | O_NOCTTY | O_NONBLOCK);
+        if (fd < 0) {
+            snprintf(err, err_size, "не удалось открыть %s: %s", name, strerror(errno));
+            return -1;
+        }
+        if (tcgetattr(fd, &tio) != 0) {
+            snprintf(err, err_size, "%s не похож на последовательный порт: %s", name, strerror(errno));
+            close(fd);
+            return -1;
+        }
+        cfmakeraw(&tio);
+        tio.c_cflag |= CLOCAL | CREAD;
+        tio.c_cflag &= ~(tcflag_t)(CSIZE | PARENB | CSTOPB | CRTSCTS);
+        tio.c_cflag |= CS8;
+        cfsetospeed(&tio, speed);
+        cfsetispeed(&tio, speed);
+        if (tcsetattr(fd, TCSANOW, &tio) != 0) {
+            snprintf(err, err_size, "не удалось настроить %s (%d бод): %s", name, baud, strerror(errno));
+            close(fd);
+            return -1;
+        }
+        g_ser = fd;
+    }
+#endif
+
+    ser_lock();
+    g_ser_head = g_ser_count = 0;
+    g_ser_stop = g_ser_failed = g_ser_warned_drop = 0;
+    g_ser_running = 1;
+    ser_unlock();
+#ifdef _WIN32
+    g_ser_thread = CreateThread(NULL, 0, ser_thread_main, NULL, 0, NULL);
+    if (g_ser_thread == NULL) {
+        snprintf(err, err_size, "не удалось создать поток записи");
+        CloseHandle(g_ser);
+        g_ser = SERIAL_NONE;
+        g_ser_running = 0;
+        return -1;
+    }
+#else
+    if (pthread_create(&g_ser_thread, NULL, ser_thread_main, NULL) != 0) {
+        snprintf(err, err_size, "не удалось создать поток записи");
+        close(g_ser);
+        g_ser = SERIAL_NONE;
+        g_ser_running = 0;
+        return -1;
+    }
+#endif
+    return 0;
+}
+
+void serial_close(void)
+{
+    int i;
+    ser_lock();
+    if (!g_ser_running) {
+        ser_unlock();
+        return;
+    }
+    g_ser_stop = 1;
+    ser_wake();
+    ser_unlock();
+#ifdef _WIN32
+    WaitForSingleObject(g_ser_thread, 3000);
+    CloseHandle(g_ser_thread);
+    CloseHandle(g_ser);
+#else
+    pthread_join(g_ser_thread, NULL);
+    close(g_ser);
+#endif
+    g_ser = SERIAL_NONE;
+    ser_lock();
+    for (i = 0; i < SERIAL_QUEUE_LEN; i++) {
+        free(g_ser_queue[i]);
+        g_ser_queue[i] = NULL;
+    }
+    g_ser_head = g_ser_count = 0;
+    g_ser_running = 0;
+    ser_unlock();
+}
+
+int serial_enabled(void)
+{
+    int ok;
+    ser_lock();
+    ok = g_ser_running && !g_ser_failed;
+    ser_unlock();
+    return ok;
+}
+
+void serial_set_eol(serial_eol_t eol)  { g_ser_eol = eol; }
+void serial_set_translit(int on)       { g_ser_translit = on; }
+
+void serial_send_line(const char *text)
+{
+    char buf[MSG_MAX_BYTES * 4 + 4];       /* транслитерация может удлинить текст ("щ" -> "shch") */
+    const char *eol = "";
+    char *copy;
+    size_t n;
+
+    if (!serial_enabled())
+        return;
+    if (g_ser_translit)
+        translit_ru(text, buf, sizeof(buf) - 4);
+    else
+        snprintf(buf, sizeof(buf) - 4, "%s", text);
+    switch (g_ser_eol) {
+    case EOL_LF:   eol = "\n";   break;
+    case EOL_CRLF: eol = "\r\n"; break;
+    case EOL_CR:   eol = "\r";   break;
+    default:       break;
+    }
+    n = strlen(buf);
+    memcpy(buf + n, eol, strlen(eol) + 1);
+    n = strlen(buf);
+
+    copy = (char *)malloc(n + 1);
+    if (copy == NULL)
+        return;
+    memcpy(copy, buf, n + 1);
+
+    ser_lock();
+    if (g_ser_count == SERIAL_QUEUE_LEN) {      /* плата не успевает: самое старое сообщение отбрасываем */
+        free(g_ser_queue[g_ser_head]);
+        g_ser_queue[g_ser_head] = NULL;
+        g_ser_head = (g_ser_head + 1) % SERIAL_QUEUE_LEN;
+        g_ser_count--;
+        if (!g_ser_warned_drop) {
+            g_ser_warned_drop = 1;
+            con_print(CLR_ERROR, "[COM] Порт не успевает принимать данные: старые сообщения отбрасываются.\n");
+        }
+    }
+    g_ser_queue[(g_ser_head + g_ser_count) % SERIAL_QUEUE_LEN] = copy;
+    g_ser_count++;
+    ser_wake();
+    ser_unlock();
+}
+
+/* Показать порты, к которым можно подключиться (имя для параметра --com). */
+void serial_list(void)
+{
+    int found = 0;
+#ifdef _WIN32
+    int i;
+    for (i = 1; i <= 255; i++) {
+        char name[16], target[256];
+        snprintf(name, sizeof(name), "COM%d", i);
+        if (QueryDosDeviceA(name, target, sizeof(target)) != 0) {
+            con_print(CLR_DEFAULT, "  %s\n", name);
+            found++;
+        }
+    }
+#else
+    DIR *d = opendir("/dev");
+    struct dirent *e;
+    static const char *const prefixes[] = { "cu.usb", "cu.wch", "cu.SLAB", "ttyUSB", "ttyACM" };
+    if (d != NULL) {
+        while ((e = readdir(d)) != NULL) {
+            size_t k;
+            for (k = 0; k < sizeof(prefixes) / sizeof(prefixes[0]); k++) {
+                if (strncmp(e->d_name, prefixes[k], strlen(prefixes[k])) == 0) {
+                    con_print(CLR_DEFAULT, "  /dev/%s\n", e->d_name);
+                    found++;
+                    break;
+                }
+            }
+        }
+        closedir(d);
+    }
+#endif
+    if (found == 0)
+        con_print(CLR_INFO, "  COM-портов не найдено. Подключите плату и проверьте драйвер.\n");
+}
+
+/* Русские (и украинские/белорусские) буквы латиницей; ъ и ь пропускаются. */
+static const char *translit_cp(unsigned cp)
+{
+    static const char *const up[32] = {
+        "A","B","V","G","D","E","Zh","Z","I","Y","K","L","M","N","O","P",
+        "R","S","T","U","F","Kh","Ts","Ch","Sh","Shch","","Y","","E","Yu","Ya" };
+    static const char *const lo[32] = {
+        "a","b","v","g","d","e","zh","z","i","y","k","l","m","n","o","p",
+        "r","s","t","u","f","kh","ts","ch","sh","shch","","y","","e","yu","ya" };
+    if (cp >= 0x410 && cp <= 0x42F) return up[cp - 0x410];
+    if (cp >= 0x430 && cp <= 0x44F) return lo[cp - 0x430];
+    switch (cp) {
+    case 0x401: return "Yo";  case 0x451: return "yo";
+    case 0x404: return "Ye";  case 0x454: return "ye";
+    case 0x406: return "I";   case 0x456: return "i";
+    case 0x407: return "Yi";  case 0x457: return "yi";
+    case 0x40E: return "U";   case 0x45E: return "u";
+    case 0x490: return "G";   case 0x491: return "g";
+    default:    return NULL;
+    }
+}
+
+void translit_ru(const char *utf8, char *out, size_t out_size)
+{
+    const unsigned char *p = (const unsigned char *)utf8;
+    size_t pos = 0;
+
+    if (out_size == 0)
+        return;
+    while (*p) {
+        unsigned cp;
+        char one[2];
+        const char *rep;
+        size_t n;
+        int len = utf8_decode(p, &cp);
+
+        if (len == 0) {                    /* битый байт */
+            one[0] = '?'; one[1] = '\0'; rep = one; len = 1;
+        } else if (cp < 0x80) {
+            one[0] = (char)cp; one[1] = '\0'; rep = one;
+        } else {
+            rep = translit_cp(cp);
+            if (rep == NULL) {             /* символ, которого нет на дисплее */
+                one[0] = '?'; one[1] = '\0'; rep = one;
+            }
+        }
+        n = strlen(rep);
+        if (pos + n >= out_size)
+            break;
+        memcpy(out + pos, rep, n);
+        pos += n;
+        p += len;
+    }
+    out[pos] = '\0';
+}
+
+/* ======================================================================
  *                           Строки и UTF-8
  * ====================================================================== */
 
@@ -469,6 +991,91 @@ static size_t utf8_encode(unsigned cp, char *out)
     out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
     out[3] = (char)(0x80 | (cp & 0x3F));
     return 4;
+}
+
+/* Изменить регистр буквы для стиля «ЗаБоР». Возвращает код символа и через
+ * is_letter сообщает, нужно ли переключить регистр следующей буквы. */
+static unsigned zabor_case(unsigned cp, int upper, int *is_letter)
+{
+    *is_letter = 1;
+    if (cp >= 'A' && cp <= 'Z')
+        return upper ? cp : cp + ('a' - 'A');
+    if (cp >= 'a' && cp <= 'z')
+        return upper ? cp - ('a' - 'A') : cp;
+    if (cp >= 0x0410 && cp <= 0x042F)            /* А..Я */
+        return upper ? cp : cp + 0x20;
+    if (cp >= 0x0430 && cp <= 0x044F)            /* а..я */
+        return upper ? cp - 0x20 : cp;
+    switch (cp) {
+    case 0x0401: return upper ? 0x0401 : 0x0451;  /* Ё ё */
+    case 0x0451: return upper ? 0x0401 : 0x0451;
+    case 0x0404: return upper ? 0x0404 : 0x0454;  /* Є є */
+    case 0x0454: return upper ? 0x0404 : 0x0454;
+    case 0x0406: return upper ? 0x0406 : 0x0456;  /* І і */
+    case 0x0456: return upper ? 0x0406 : 0x0456;
+    case 0x0407: return upper ? 0x0407 : 0x0457;  /* Ї ї */
+    case 0x0457: return upper ? 0x0407 : 0x0457;
+    case 0x040E: return upper ? 0x040E : 0x045E;  /* Ў ў */
+    case 0x045E: return upper ? 0x040E : 0x045E;
+    case 0x0490: return upper ? 0x0490 : 0x0491;  /* Ґ ґ */
+    case 0x0491: return upper ? 0x0490 : 0x0491;
+    default:
+        *is_letter = 0;
+        return cp;
+    }
+}
+
+void zabor_utf8(const char *utf8, char *out, size_t out_size)
+{
+    const unsigned char *p = (const unsigned char *)utf8;
+    size_t pos = 0;
+    int upper = 1;
+
+    if (out_size == 0)
+        return;
+    while (*p) {
+        unsigned cp;
+        char encoded[4];
+        size_t n;
+        int len = utf8_decode(p, &cp);
+        int letter;
+
+        if (len == 0) {
+            cp = '?';
+            len = 1;
+        }
+        cp = zabor_case(cp, upper, &letter);
+        n = utf8_encode(cp, encoded);
+        if (pos + n >= out_size)
+            break;
+        memcpy(out + pos, encoded, n);
+        pos += n;
+        p += len;
+        if (letter)
+            upper = !upper;
+    }
+    out[pos] = '\0';
+}
+
+/* Подготовить входящую строку чата для Arduino. Имя и разделитель сохраняются,
+ * регистр меняется только в тексте сообщения. Служебные строки не проходят. */
+int zabor_chat_line(const char *line, char *out, size_t out_size)
+{
+    const char *sep;
+    size_t prefix_len;
+
+    if (line == NULL || out_size == 0 || line[0] == '\0' || line[0] == ' ' ||
+        str_starts_with(line, SRV_PREFIX))
+        return 0;
+    sep = strstr(line, ": ");
+    if (sep == NULL || sep == line || sep[2] == '\0')
+        return 0;
+    prefix_len = (size_t)(sep - line) + 2;
+    if (prefix_len >= out_size)
+        return 0;
+    memcpy(out, line, prefix_len);
+    zabor_utf8(sep + 2, out + prefix_len, out_size - prefix_len);
+    return 1;
 }
 
 size_t utf8_strlen(const char *s)

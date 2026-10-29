@@ -11,7 +11,12 @@
  *   - поток приёма печатает входящие сообщения.
  * Личные сообщения (строки вида "@имя: текст") выделяются цветом.
  *
- * Запуск: client [IP-адрес-сервера] [порт]
+ * Лабораторная 2: с параметром --com каждое полученное сообщение пользователя
+ * дополнительно отправляется на Arduino через COM-порт в стиле «ЗаБоР».
+ * Имя сохраняется: "Иван: привет" -> "Иван: ПрИвЕт".
+ *
+ * Запуск: client [IP-адрес-сервера] [порт] [--com ПОРТ] [--baud N]
+ *         client --list-com
  *         если IP не указан — клиент спросит его при запуске.
  */
 #include "common.h"
@@ -202,6 +207,17 @@ static void show_line(char *line)
     con_unlock();
 }
 
+/* Лабораторная 2: пользовательское сообщение из сокета -> ЗаБоР -> Arduino.
+ * serial_send_line() только ставит строку в очередь, поэтому медленный COM-порт
+ * не задерживает поток, принимающий сообщения чата. */
+static void forward_to_arduino(const char *line)
+{
+    char transformed[RECV_BUF_SIZE + 1];
+
+    if (serial_enabled() && zabor_chat_line(line, transformed, sizeof(transformed)))
+        serial_send_line(transformed);
+}
+
 /* Спросить у пользователя имя (одно слово). 0 — успех, -1 — конец ввода. */
 static int ask_name(char *name, size_t name_size, const char *prompt)
 {
@@ -327,8 +343,10 @@ static void *receiver_thread(void *arg)
     char line[RECV_BUF_SIZE + 1];
     (void)arg;
 
-    while (recv_line(&g_reader, line, sizeof(line)) > 0)
+    while (recv_line(&g_reader, line, sizeof(line)) > 0) {
         show_line(line);
+        forward_to_arduino(line);
+    }
 
     if (!g_quit) {
 #ifdef _WIN32
@@ -358,8 +376,10 @@ int main(int argc, char **argv)
     char host[256], port_str[16];
     char name[NAME_MAX_BYTES + 1];
     char line[INPUT_BUF_SIZE];
+    const char *host_arg = NULL, *com_name = NULL;
     sock_t sock;
-    int send_error = 0;
+    int send_error = 0, port = DEFAULT_PORT, port_given = 0;
+    int baud = SERIAL_DEFAULT_BAUD, i;
 #ifdef _WIN32
     HANDLE th;
 #else
@@ -371,20 +391,47 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
 #endif
 
-    if (argc > 3) {
-        con_print(CLR_ERROR, "Использование: %s [IP-адрес-сервера] [порт]\n", argv[0]);
-        return 1;
-    }
-    snprintf(port_str, sizeof(port_str), "%d", DEFAULT_PORT);
-    if (argc > 2) {
-        char *end;
-        long p = strtol(argv[2], &end, 10);
-        if (*end != '\0' || p <= 0 || p > 65535) {
-            con_print(CLR_ERROR, "Неверный порт «%s» (нужно число 1..65535)\n", argv[2]);
+    for (i = 1; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
+            con_print(CLR_DEFAULT,
+                      "Использование: %s [адрес] [порт] [--com COM3] [--baud 9600]\n"
+                      "               %s --list-com\n",
+                      argv[0], argv[0]);
+            return 0;
+        } else if (strcmp(a, "--list-com") == 0) {
+            con_print(CLR_NAME, "Доступные COM-порты:\n");
+            serial_list();
+            return 0;
+        } else if (strcmp(a, "--com") == 0 && i + 1 < argc) {
+            com_name = argv[++i];
+        } else if (strcmp(a, "--baud") == 0 && i + 1 < argc) {
+            char *end;
+            long value = strtol(argv[++i], &end, 10);
+            if (*argv[i] == '\0' || *end != '\0' || value < 300 || value > 4000000) {
+                con_print(CLR_ERROR, "Неверная скорость «%s»\n", argv[i]);
+                return 1;
+            }
+            baud = (int)value;
+        } else if (a[0] != '-' && host_arg == NULL) {
+            host_arg = a;
+        } else if (a[0] != '-' && !port_given) {
+            char *end;
+            long value = strtol(a, &end, 10);
+            if (*a == '\0' || *end != '\0' || value < 1 || value > 65535) {
+                con_print(CLR_ERROR, "Неверный порт «%s» (нужно число 1..65535)\n", a);
+                return 1;
+            }
+            port = (int)value;
+            port_given = 1;
+        } else {
+            con_print(CLR_ERROR,
+                      "Использование: %s [адрес] [порт] [--com COM3] [--baud 9600]\n",
+                      argv[0]);
             return 1;
         }
-        snprintf(port_str, sizeof(port_str), "%ld", p);
     }
+    snprintf(port_str, sizeof(port_str), "%d", port);
 
     con_print(CLR_NAME, "=== Клиент чата ===\n");
 
@@ -392,8 +439,8 @@ int main(int argc, char **argv)
     if (ask_name(name, sizeof(name), "Введите ваше имя для чата (одно слово): ") != 0)
         return 0;
 
-    if (argc > 1) {
-        snprintf(host, sizeof(host), "%s", argv[1]);
+    if (host_arg != NULL) {
+        snprintf(host, sizeof(host), "%s", host_arg);
     } else {
         for (;;) {
             char *s;
@@ -419,9 +466,24 @@ int main(int argc, char **argv)
         console_pause_if_owned();
         return 1;
     }
+    if (com_name != NULL) {
+        char err[300];
+        serial_set_eol(EOL_LF);
+        serial_set_translit(0);       /* Arduino-прошивка сама рисует русский UTF-8 */
+        if (serial_open(com_name, baud, err, sizeof(err)) != 0) {
+            con_print(CLR_ERROR, "COM-порт: %s\n", err);
+            con_print(CLR_INFO, "Посмотреть порты: %s --list-com\n", argv[0]);
+            net_cleanup();
+            console_pause_if_owned();
+            return 1;
+        }
+        con_print(CLR_NAME, "Arduino: %s, %d бод; сообщения выводятся ЗаБоРом.\n",
+                  com_name, baud);
+    }
     con_print(CLR_INFO, "Подключение к %s:%s...\n", host, port_str);
     sock = connect_to_server(host, port_str);
     if (sock == SOCK_INVALID) {
+        serial_close();
         net_cleanup();
         console_pause_if_owned();
         return 1;
@@ -433,6 +495,7 @@ int main(int argc, char **argv)
     g_reader.len = 0;
     if (register_name(name, sizeof(name)) != 0) {
         sock_close(sock);
+        serial_close();
         net_cleanup();
         console_pause_if_owned();
         return 1;
@@ -446,6 +509,7 @@ int main(int argc, char **argv)
 #endif
         con_print(CLR_ERROR, "Не удалось создать поток приёма\n");
         sock_close(sock);
+        serial_close();
         net_cleanup();
         console_pause_if_owned();
         return 1;
@@ -491,6 +555,7 @@ int main(int argc, char **argv)
     pthread_join(th, NULL);
 #endif
     sock_close(sock);
+    serial_close();
     net_cleanup();
 
     if (send_error) {
