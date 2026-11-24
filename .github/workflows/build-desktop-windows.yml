@@ -24,6 +24,7 @@ jobs:
         run: |
           python tests/test_desktop_arduino.py
           python tests/test_desktop_endpoint.py
+          node tests/test_graph_math.js
 
       - name: Build client.exe
         shell: pwsh

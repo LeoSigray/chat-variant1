@@ -20,6 +20,7 @@
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --radius: 28px;
+    --name-s: 68%; --name-l: 32%;            /* цвет имён участников: тон задаёт --h */
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -37,6 +38,7 @@
       --sheet: rgba(14,36,70,.97);
       --blob-1a: #2f7fd6; --blob-1b: #1b57a8; --blob-2a: #3aa0d8; --blob-2b: #1d6fa8; --blob-3a: #3a63c8; --blob-3b: #2447a0; --blob-4a: #6aa8f0; --blob-4b: #2c5fa6;
       --blob-op: .55;
+      --name-s: 80%; --name-l: 76%;
       color-scheme: dark;
     }
   }
@@ -55,6 +57,7 @@
     --sheet: rgba(14,36,70,.97);
     --blob-1a: #2f7fd6; --blob-1b: #1b57a8; --blob-2a: #3aa0d8; --blob-2b: #1d6fa8; --blob-3a: #3a63c8; --blob-3b: #2447a0; --blob-4a: #6aa8f0; --blob-4b: #2c5fa6;
     --blob-op: .55;
+    --name-s: 80%; --name-l: 76%;
     color-scheme: dark;
   }
 
@@ -176,18 +179,28 @@
   .icon-btn:hover { background: var(--hover); }
   .icon-btn svg { width: 16px; height: 16px; }
 
-  .main { grid-area: main; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+  .main { grid-area: main; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+  .panel { min-height: 0; }
+  #panelChat { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+  .tabs { display: flex; gap: 6px; padding: 10px 16px 0; }
+  .tab { height: 36px; padding: 0 18px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--ink-2); background: transparent; border: 1px solid transparent; transition: background .15s, color .15s; }
+  .tab:hover { background: var(--hover); }
+  .tab[aria-selected="true"] { color: var(--link); background: var(--chip); border-color: var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi); }
+  .tab:focus-visible { outline: 3px solid rgba(10,132,255,.55); outline-offset: 2px; }
   .log { overflow: auto; padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
   .log > * { flex-shrink: 0; }   /* иначе блоки с overflow сплющиваются под высоту окна */
-  .msg { display: flex; flex-direction: column; max-width: min(80%, 560px); align-self: flex-start; }
-  .who { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 0 12px 3px; display: flex; gap: 8px; align-items: baseline; }
+  .nm { color: hsl(var(--h, 212) var(--name-s) var(--name-l)); font-weight: 700; }
+  .msg { display: flex; flex-direction: column; max-width: min(80%, 560px); align-self: flex-start; --h: 212; }
+  .who { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 0 12px 3px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .who time { font-weight: 500; color: var(--ink-3); }
-  .bubble { padding: 10px 15px; border-radius: 20px 20px 20px 7px; background: var(--bubble); border: 1px solid var(--glass-line); box-shadow: 0 8px 18px -12px rgba(30,90,170,.5); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .who .arrow { color: var(--ink-3); font-weight: 500; }
+  /* имена — разными цветами, сами сообщения — одним (--ink); личное сообщение — цветом имени отправителя */
+  .bubble { padding: 10px 15px; border-radius: 20px 20px 20px 7px; color: var(--ink); background: var(--bubble); border: 1px solid var(--glass-line); box-shadow: 0 8px 18px -12px rgba(30,90,170,.5); overflow-wrap: anywhere; white-space: pre-wrap; }
   .msg.own { align-self: flex-end; }
   .msg.own .who { justify-content: flex-end; }
-  .msg.own .bubble { color: #fff; border-radius: 20px 20px 7px 20px; border-color: rgba(255,255,255,.35); background: linear-gradient(180deg, #4aa8ff, #0a6df0 60%, #0060df); box-shadow: 0 10px 20px -10px rgba(10,100,230,.7), inset 0 1px 0 rgba(255,255,255,.45); }
-  .msg.private .bubble { background: linear-gradient(135deg, var(--private-a), var(--private-b)); border-color: var(--private-line); }
-  .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--violet); }
+  .msg.own .bubble { border-radius: 20px 20px 7px 20px; border-color: hsl(var(--h) 80% 60% / .45); background: linear-gradient(hsl(var(--h) 90% 55% / .13), hsl(var(--h) 90% 55% / .13)), var(--bubble); }
+  .msg.private .bubble { color: hsl(var(--h) var(--name-s) var(--name-l)); border-color: hsl(var(--h) 75% 55% / .6); background: linear-gradient(hsl(var(--h) 90% 60% / .17), hsl(var(--h) 90% 60% / .17)), var(--bubble); }
+  .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: hsl(var(--h, 212) var(--name-s) var(--name-l)); }
   .sys { align-self: center; max-width: 92%; text-align: center; font-size: 13px; color: var(--ink-2); background: var(--sys); border: 1px solid var(--glass-line); border-radius: 14px; padding: 6px 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .sys.multi { text-align: left; font-family: var(--mono); font-size: 12.5px; padding: 9px 14px; overflow-x: auto; }
   .quote { align-self: center; max-width: min(92%, 560px); background: linear-gradient(135deg, rgba(10,132,255,.14), var(--bubble)); border: 1px solid var(--glass-line); border-radius: 18px; padding: 10px 15px; box-shadow: 0 8px 18px -12px rgba(30,90,170,.5); }
@@ -212,6 +225,51 @@
     padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--ink); background: var(--sheet); border: 1px solid var(--glass-line); box-shadow: var(--shadow); transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+
+  /* ---------- участники: действия, статистика ---------- */
+  .side-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .side-actions .ghost { flex: 1 1 auto; }
+  .stats { border-top: 1px solid var(--glass-line); padding-top: 10px; display: grid; gap: 6px; max-height: 48%; overflow: auto; }
+  .stats h2 { margin: 0 6px; }
+  .stats dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 13px; padding: 0 6px; }
+  .stats dt { color: var(--ink-3); }
+  .stats dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .stats .by { display: grid; gap: 5px; padding: 4px 6px 0; font-size: 12.5px; }
+  .stats .by-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; }
+  .stats .by-row b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stats .bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: hsl(var(--h) 80% 55% / .75); }
+
+  /* ---------- контекстное меню и диалог ---------- */
+  .ctx { position: fixed; z-index: 30; min-width: 220px; padding: 6px; display: grid; border-radius: 16px; background: var(--sheet); border: 1px solid var(--glass-line); box-shadow: var(--shadow); }
+  .ctx button { text-align: left; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); background: none; border: 0; border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+  .ctx button:hover, .ctx button:focus-visible { background: var(--hover); outline: none; }
+  .ctx .ctx-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); padding: 6px 12px 4px; }
+  .modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: rgba(10, 40, 90, .28); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .modal-card { width: min(420px, 100%); padding: 24px; display: grid; gap: 14px; background: var(--sheet); }
+  .modal-card h3 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+  .modal-card p { margin: 0; color: var(--ink-2); font-size: 14px; }
+  .modal-card .input { height: 48px; }
+  .modal-row { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-row .btn { height: 44px; font-size: 15px; }
+
+  /* ---------- график функции ---------- */
+  #panelGraph { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; }
+  .gform { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .gform .gexpr { flex: 1 1 240px; }
+  .gform .gbound { flex: 0 1 130px; }
+  .gform .input { height: 46px; }
+  .gform .btn { height: 46px; padding: 0 22px; font-size: 15px; }
+  .gform .mono { font-family: var(--mono); }
+  .pchips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pchip { height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; font-family: var(--mono); cursor: pointer; color: var(--link); background: var(--chip); border: 1px solid var(--glass-line); }
+  .pchip:hover { background: var(--hover); }
+  .pchip:focus-visible { outline: 3px solid rgba(10,132,255,.55); outline-offset: 2px; }
+  .gerr { color: var(--danger); font-size: 14px; font-weight: 600; min-height: 0; }
+  .gerr:empty { display: none; }
+  .gwrap { position: relative; flex: 1 1 auto; min-height: 220px; border-radius: 18px; background: var(--field); border: 1px solid var(--field-line); box-shadow: inset 0 1px 3px rgba(40,100,190,.14); overflow: hidden; }
+  .gwrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .ghover { min-height: 20px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
   @media (max-width: 760px) {
     :root { --radius: 24px; }
     .screen { padding: 12px 16px; }
@@ -225,6 +283,9 @@
     .log { padding: 14px 12px 6px; }
     .msg { max-width: 92%; }
     .composer { padding: 8px 12px 12px; }
+    .tabs { padding: 8px 12px 0; }
+    #panelGraph { padding: 10px 12px 12px; }
+    .gform .gbound { flex: 1 1 110px; }
   }
 </style>
 <script>document.documentElement.dataset.mode = window.APP_MODE || 'demo';</script>
@@ -289,9 +350,22 @@
         </button>
       </h2>
       <ul class="users" id="users"></ul>
+      <div class="side-actions">
+        <button class="ghost" id="renameBtn" type="button">Сменить имя</button>
+      </div>
+      <section class="stats" aria-labelledby="statsH">
+        <h2 id="statsH"><span>Статистика чата</span></h2>
+        <dl id="stats"></dl>
+        <div class="by" id="statsBy" aria-label="Сообщения по участникам"></div>
+      </section>
     </aside>
 
     <div class="main">
+      <div class="tabs" role="tablist" aria-label="Разделы">
+        <button class="tab" id="tabChat" type="button" role="tab" aria-selected="true" aria-controls="panelChat">Чат</button>
+        <button class="tab" id="tabGraph" type="button" role="tab" aria-selected="false" aria-controls="panelGraph" tabindex="-1">График</button>
+      </div>
+      <div class="panel" id="panelChat" role="tabpanel" aria-labelledby="tabChat">
       <div class="log" id="log" role="log" aria-live="polite" aria-label="Сообщения"></div>
       <div class="composer">
         <div class="chips" aria-label="Команды">
@@ -308,9 +382,54 @@
           </button>
         </form>
       </div>
+      </div>
+
+      <section class="panel" id="panelGraph" role="tabpanel" aria-labelledby="tabGraph" hidden>
+        <form class="gform" id="gform" novalidate autocomplete="off">
+          <div class="field gexpr">
+            <label for="gexpr">f(x) =</label>
+            <input class="input mono" id="gexpr" name="gexpr" value="sin(x)" placeholder="например, cos(x)/x+x*x" spellcheck="false" autocapitalize="off" aria-describedby="gerr">
+          </div>
+          <div class="field gbound">
+            <label for="gleft">Левая граница x</label>
+            <input class="input" id="gleft" name="gleft" value="-3" inputmode="decimal" spellcheck="false" aria-describedby="gerr">
+          </div>
+          <div class="field gbound">
+            <label for="gright">Правая граница x</label>
+            <input class="input" id="gright" name="gright" value="18" inputmode="decimal" spellcheck="false" aria-describedby="gerr">
+          </div>
+          <button class="btn" id="gplot" type="submit">Построить</button>
+        </form>
+        <div class="pchips" aria-label="Примеры функций">
+          <button class="pchip" type="button" data-expr="sin(x)" data-a="-3" data-b="18">sin(x)</button>
+          <button class="pchip" type="button" data-expr="cos(x)/x+x*x" data-a="-3" data-b="18">cos(x)/x+x*x</button>
+          <button class="pchip" type="button" data-expr="x^2-4" data-a="-5" data-b="5">x^2-4</button>
+          <button class="pchip" type="button" data-expr="1/x" data-a="-5" data-b="5">1/x</button>
+          <button class="pchip" type="button" data-expr="tan(x)" data-a="-6" data-b="6">tan(x)</button>
+          <button class="pchip" type="button" data-expr="exp(-x^2)" data-a="-4" data-b="4">exp(-x^2)</button>
+          <button class="pchip" type="button" data-expr="sin(x)/x" data-a="-20" data-b="20">sin(x)/x</button>
+        </div>
+        <div class="gerr" id="gerr" role="alert" aria-live="polite"></div>
+        <div class="gwrap" id="gwrap"><canvas id="gcanvas" role="img" aria-label="График функции"></canvas></div>
+        <div class="ghover" id="ghover"></div>
+      </section>
     </div>
   </section>
 </main>
+
+<div class="ctx" id="ctx" role="menu" hidden></div>
+<div class="modal" id="modal" hidden>
+  <form class="glass modal-card" id="mForm" role="dialog" aria-modal="true" aria-labelledby="mTitle" autocomplete="off">
+    <h3 id="mTitle"></h3>
+    <p id="mLead"></p>
+    <input class="input" id="mInput" aria-labelledby="mTitle">
+    <div class="error" id="mErr" role="alert"></div>
+    <div class="modal-row">
+      <button class="ghost" id="mCancel" type="button">Отмена</button>
+      <button class="btn" id="mOk" type="submit">OK</button>
+    </div>
+  </form>
+</div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -501,6 +620,189 @@ class FakeServer {
 }
 </script>
 
+<!-- ===== Математика графика: разбор формулы и подбор масштаба (всё считается в клиенте, без DLL) ===== -->
+<script id="mathlib">
+const MathLib = (() => {
+  class ExprError extends Error {
+    constructor(message, field) { super(message); this.name = 'ExprError'; this.field = field || 'expr'; }
+  }
+  const F = (f, min, max) => ({ f, min, max: max === undefined ? min : max });
+  const cot = (v) => 1 / Math.tan(v);
+  const FUNCS = {
+    sin: F(Math.sin, 1), cos: F(Math.cos, 1), tan: F(Math.tan, 1), tg: F(Math.tan, 1), cot: F(cot, 1), ctg: F(cot, 1),
+    asin: F(Math.asin, 1), arcsin: F(Math.asin, 1), acos: F(Math.acos, 1), arccos: F(Math.acos, 1),
+    atan: F(Math.atan, 1), arctan: F(Math.atan, 1), arctg: F(Math.atan, 1),
+    sinh: F(Math.sinh, 1), cosh: F(Math.cosh, 1), tanh: F(Math.tanh, 1),
+    exp: F(Math.exp, 1), ln: F(Math.log, 1), log: F(Math.log10, 1), lg: F(Math.log10, 1), log2: F(Math.log2, 1),
+    sqrt: F(Math.sqrt, 1), cbrt: F(Math.cbrt, 1), abs: F(Math.abs, 1),
+    floor: F(Math.floor, 1), ceil: F(Math.ceil, 1), round: F(Math.round, 1), sign: F(Math.sign, 1),
+    pow: F(Math.pow, 2), min: F(Math.min, 2, 8), max: F(Math.max, 2, 8)
+  };
+  const CONSTS = { pi: Math.PI, 'π': Math.PI, e: Math.E };
+  const NUM = /(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
+  const ID = /[A-Za-zπ_][A-Za-z0-9_]*/y;
+
+  function tokenize(src, field) {
+    const s = src.replace(/−/g, '-').replace(/[×·]/g, '*').replace(/÷/g, '/');
+    const toks = [];
+    let i = 0;
+    while (i < s.length) {
+      const c = s[i];
+      if (/\s/.test(c)) { i++; continue; }
+      NUM.lastIndex = i; ID.lastIndex = i;
+      let m;
+      if ((m = NUM.exec(s)) && m.index === i) { toks.push({ t: 'num', v: parseFloat(m[0]), pos: i }); i += m[0].length; continue; }
+      if ((m = ID.exec(s)) && m.index === i) { toks.push({ t: 'id', v: m[0].toLowerCase(), raw: m[0], pos: i }); i += m[0].length; continue; }
+      if (c === '*' && s[i + 1] === '*') { toks.push({ t: 'op', v: '^', pos: i }); i += 2; continue; }
+      if ('+-*/^(),;'.includes(c)) { toks.push({ t: 'op', v: c === ';' ? ',' : c, pos: i }); i++; continue; }
+      throw new ExprError('Недопустимый символ «' + c + '» в позиции ' + (i + 1), field);
+    }
+    return toks;
+  }
+
+  // Формула -> функция x => число. Поддержано: + - * / ^ (**), скобки, неявное умножение (2x, 2(x+1)),
+  // константы pi и e, функции из FUNCS. Выполнение произвольного кода (eval) не используется.
+  function compile(src, field) {
+    field = field || 'expr';
+    const toks = tokenize(String(src), field);
+    if (!toks.length) throw new ExprError('Введите функцию, например sin(x)', field);
+    let p = 0, usesX = false;
+    const err = (msg) => new ExprError(msg, field);
+    const isOp = (v) => toks[p] && toks[p].t === 'op' && toks[p].v === v;
+    const startsPrimary = (t) => t && (t.t === 'num' || t.t === 'id' || (t.t === 'op' && t.v === '('));
+
+    function expr() {
+      let l = term();
+      while (isOp('+') || isOp('-')) {
+        const plus = toks[p++].v === '+', a = l, b = term();
+        l = plus ? (x) => a(x) + b(x) : (x) => a(x) - b(x);
+      }
+      return l;
+    }
+    function term() {
+      let l = unary();
+      for (;;) {
+        if (isOp('*') || isOp('/')) {
+          const mul = toks[p++].v === '*', a = l, b = unary();
+          l = mul ? (x) => a(x) * b(x) : (x) => a(x) / b(x);
+        } else if (startsPrimary(toks[p])) {            // 2x, 2(x+1), sin(x)cos(x)
+          const a = l, b = power();
+          l = (x) => a(x) * b(x);
+        } else return l;
+      }
+    }
+    function unary() {
+      if (isOp('-')) { p++; const a = unary(); return (x) => -a(x); }
+      if (isOp('+')) { p++; return unary(); }
+      return power();
+    }
+    function power() {
+      const base = primary();
+      if (isOp('^')) { p++; const e = unary(); return (x) => Math.pow(base(x), e(x)); }   // -x^2 = -(x^2), 2^3^2 = 2^9
+      return base;
+    }
+    function primary() {
+      const t = toks[p];
+      if (!t) throw err('Формула обрывается: ожидалось число, x или скобка');
+      if (t.t === 'num') { p++; const v = t.v; return () => v; }
+      if (t.t === 'id') {
+        p++;
+        if (t.v === 'x') { usesX = true; return (x) => x; }
+        if (Object.prototype.hasOwnProperty.call(CONSTS, t.v)) { const v = CONSTS[t.v]; return () => v; }
+        if (Object.prototype.hasOwnProperty.call(FUNCS, t.v)) {
+          const fn = FUNCS[t.v];
+          if (!isOp('(')) throw err('После «' + t.raw + '» нужны скобки, например ' + t.raw + '(x)');
+          p++;
+          const args = [];
+          if (!isOp(')')) { args.push(expr()); while (isOp(',')) { p++; args.push(expr()); } }
+          if (!isOp(')')) throw err('Не хватает закрывающей скобки у «' + t.raw + '»');
+          p++;
+          if (args.length < fn.min || args.length > fn.max)
+            throw err('Функция «' + t.raw + '» принимает ' + (fn.min === fn.max ? fn.min : fn.min + '–' + fn.max) + ' арг., а передано ' + args.length);
+          if (args.length === 1) { const a = args[0], f = fn.f; return (x) => f(a(x)); }
+          const f = fn.f;
+          return (x) => f(...args.map((a) => a(x)));
+        }
+        throw err('Неизвестное имя «' + t.raw + '». Можно x, pi, e и функции sin, cos, tan, exp, ln, log, sqrt, abs, pow…');
+      }
+      if (t.v === '(') {
+        p++;
+        const a = expr();
+        if (!isOp(')')) throw err('Не хватает закрывающей скобки');
+        p++;
+        return a;
+      }
+      if (t.v === ')') throw err('Лишняя закрывающая скобка в позиции ' + (t.pos + 1));
+      throw err('Здесь ожидалось число, x или скобка (позиция ' + (t.pos + 1) + ')');
+    }
+
+    const fn = expr();
+    if (p < toks.length) {
+      const t = toks[p];
+      throw err(t.t === 'op' && t.v === ')' ? 'Лишняя закрывающая скобка в позиции ' + (t.pos + 1)
+                                            : 'Лишний фрагмент в позиции ' + (t.pos + 1));
+    }
+    return { fn, usesX };
+  }
+
+  // Граница графика: число или константное выражение («-3», «1,5», «2*pi»).
+  function parseBound(str, label, field) {
+    const s = String(str).trim().replace(/(\d),(\d)/g, '$1.$2');
+    if (!s) throw new ExprError(label + ': введите число', field);
+    const c = compile(s, field);
+    if (c.usesX) throw new ExprError(label + ' не должна содержать x', field);
+    const v = c.fn(0);
+    if (!Number.isFinite(v)) throw new ExprError(label + ' — не число', field);
+    return v;
+  }
+
+  function evalAt(fn, x) {
+    const y = fn(x);
+    return typeof y === 'number' && Number.isFinite(y) ? y : NaN;
+  }
+
+  // Диапазон по Y по значениям функции. Полюса (tan, 1/x) не должны «сплющить» остальной график.
+  function yRange(ys) {
+    const f = [];
+    for (const y of ys) if (Number.isFinite(y)) f.push(y);
+    if (!f.length) return null;
+    f.sort((p, q) => p - q);
+    let lo = f[0], hi = f[f.length - 1];
+    if (f.length >= 20) {
+      const at = (q) => f[Math.min(f.length - 1, Math.floor(q * (f.length - 1)))];
+      const lo2 = at(0.02), hi2 = at(0.98);
+      if (hi - lo > 8 * Math.max(hi2 - lo2, 1e-12)) { lo = lo2; hi = hi2; }
+    }
+    if (hi - lo < 1e-12) {
+      const d = Math.abs(lo) > 1e-9 ? Math.abs(lo) * 0.5 : 1;
+      lo -= d; hi += d;
+    }
+    const pad = (hi - lo) * 0.08;
+    return { lo: lo - pad, hi: hi + pad };
+  }
+
+  function niceStep(range, maxTicks) {
+    const raw = range / Math.max(1, maxTicks);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  }
+  function ticks(lo, hi, step) {
+    const out = [];
+    for (let k = Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) out.push(Number((k * step).toPrecision(12)));
+    return out;
+  }
+  function fmt(v) {
+    if (v === 0 || Object.is(v, -0)) return '0';
+    const av = Math.abs(v);
+    const s = (av >= 1e6 || av < 1e-4) ? v.toExponential(2).replace(/\.?0+e/, 'e').replace('e+', 'e') : String(Number(v.toPrecision(6)));
+    return s.replace('-', '−').replace('.', ',');
+  }
+
+  return { ExprError, compile, parseBound, evalAt, yRange, niceStep, ticks, fmt };
+})();
+</script>
+
 <!-- ===== 2) Интерфейс ===== -->
 <script>
 (() => {
@@ -523,6 +825,25 @@ class FakeServer {
   let me = '', connected = false, server = null;
   let silentUsers = 0, manualUsers = 0;
   let collecting = null, lastUsersSilent = false, lastSys = null, refreshTimer = null;
+  let userCount = 0, statsTimer = null;
+  const pendingPrivate = [];                       // отправленные личные сообщения, ждут подтверждения сервера
+  // цвета имён: у каждого участника свой тон, закрепляется за ним при первом появлении
+  const PALETTE = [212, 345, 152, 28, 272, 178, 318, 46, 98, 238, 8, 196];
+  const hueMap = new Map();
+  function hueOf(name) {
+    const k = String(name).toLowerCase();
+    if (!hueMap.has(k)) { const i = hueMap.size; hueMap.set(k, (PALETTE[i % PALETTE.length] + Math.floor(i / PALETTE.length) * 14) % 360); }
+    return hueMap.get(k);
+  }
+  function renameHue(oldName, newName) {
+    const o = String(oldName).toLowerCase();
+    if (hueMap.has(o)) { const h = hueMap.get(o); hueMap.delete(o); hueMap.set(String(newName).toLowerCase(), h); }
+  }
+  const stats = {};
+  function resetStats() {
+    Object.assign(stats, { total: 0, own: 0, privIn: 0, privOut: 0, chars: 0, by: new Map(), longest: null, last: null, since: Date.now(), until: 0 });
+  }
+  resetStats();
 
   hostI.value = '170.168.13.61'; portI.value = '5777';
 
@@ -572,10 +893,10 @@ class FakeServer {
     const t = $('#toast'); t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
   }
-  function hue(name) { let h = 0; for (const c of name) h = (h * 31 + c.codePointAt(0)) % 360; return 198 + (h % 32); }
   function avatar(name) {
     const a = el('span', 'ava', [...name][0].toUpperCase());
-    a.style.background = `linear-gradient(160deg, hsl(${hue(name)} 85% 58%), hsl(${hue(name) + 8} 80% 40%))`;
+    const h = hueOf(name);
+    a.style.background = `linear-gradient(160deg, hsl(${h} 80% 58%), hsl(${h + 10} 75% 40%))`;
     a.setAttribute('aria-hidden', 'true');
     return a;
   }
@@ -631,7 +952,10 @@ class FakeServer {
     const st = $('#status'); st.textContent = 'подключено'; st.classList.remove('off');
     logEl.textContent = ''; usersEl.textContent = ''; $('#count').textContent = '0';
     lastSys = null; collecting = null; silentUsers = manualUsers = 0;
-    textI.disabled = false; sendBtn.disabled = false;
+    textI.disabled = false; sendBtn.disabled = false; $('#renameBtn').disabled = false;
+    resetStats(); hueMap.clear(); hueOf(name); pendingPrivate.length = 0; userCount = 0;
+    showTab('chat'); renderStats();
+    clearInterval(statsTimer); statsTimer = setInterval(renderStats, 1000);
     connectScreen.hidden = true; chatScreen.hidden = false;
     requestUsers(true);
     textI.focus();
@@ -643,15 +967,24 @@ class FakeServer {
     if (near || node.classList.contains('own')) logEl.scrollTop = logEl.scrollHeight;
   }
   function addSystem(text, multi) { const s = el('div', 'sys' + (multi ? ' multi' : ''), text); push(s); lastSys = s; return s; }
-  function addMessage(who, text, kind) {
+  function addMessage(who, text, kind, extra) {
     lastSys = null;
-    const m = el('div', 'msg' + (kind ? ' ' + kind : ''));
+    const k = kind || '';
+    const isOwn = /\bown\b/.test(k), isPriv = /\bprivate\b/.test(k);
+    const m = el('div', 'msg' + (k ? ' ' + k : ''));
+    m.style.setProperty('--h', hueOf(isOwn ? me : who));
     const w = el('div', 'who');
-    w.append(el('span', null, kind === 'own' ? 'Вы' : who));
-    if (kind === 'private') w.append(el('span', 'tag', 'лично'));
+    w.append(el('span', 'nm', isOwn ? 'Вы' : who));
+    if (isOwn && isPriv && extra && extra.to) {
+      const to = el('span', 'nm', extra.to);
+      to.style.setProperty('--h', hueOf(extra.to));
+      w.append(el('span', 'arrow', '→'), to);
+    }
+    if (isPriv) w.append(el('span', 'tag', 'лично'));
     w.append(el('time', null, hm()));
     m.append(w, el('div', 'bubble', text));
     push(m);
+    recordMessage(k, who, text);
   }
   function addQuote(who, time, text) {
     lastSys = null;
@@ -670,20 +1003,31 @@ class FakeServer {
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => requestUsers(true), 350); }
 
   function renderUsers(list) {
+    userCount = list.length;
+    const ordered = [...list].sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));   // «вы» — в начале списка
     usersEl.textContent = '';
     $('#count').textContent = String(list.length);
-    if (!list.length) { usersEl.append(el('li', 'empty', 'Пока никого')); return; }
-    for (const u of list) {
+    if (!ordered.length) { usersEl.append(el('li', 'empty', 'Пока никого')); return; }
+    for (const u of ordered) {
       const li = el('li', 'user');
       li.append(avatar(u.name));
-      const nm = el('button', 'uname', u.name);
+      const nm = el('button', 'uname nm', u.name);
       nm.type = 'button';
+      nm.style.setProperty('--h', hueOf(u.name));
       if (u.me) { nm.append(el('small', null, 'это вы')); nm.disabled = true; }
-      else { nm.title = 'Личное сообщение'; nm.addEventListener('click', () => { textI.value = '#ToUser ' + u.name + ' '; textI.focus(); $('#side').classList.remove('open'); }); }
-      const last = el('button', 'last', 'последнее');
-      last.type = 'button'; last.title = 'Последнее сообщение пользователя (#LastMsg)';
-      last.addEventListener('click', () => { sendText('#LastMsg ' + u.name); $('#side').classList.remove('open'); });
-      li.append(nm, last);
+      else { nm.title = 'Правый клик — меню (личное сообщение)'; nm.addEventListener('click', () => { textI.value = '#ToUser ' + u.name + ' '; textI.focus(); $('#side').classList.remove('open'); }); }
+      li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const r = nm.getBoundingClientRect();
+        const kb = e.clientX === 0 && e.clientY === 0;          // меню вызвано с клавиатуры
+        openUserMenu(kb ? r.left + 20 : e.clientX, kb ? r.bottom : e.clientY, u, nm);
+      });
+      if (!u.me) {
+        const last = el('button', 'last', 'последнее');
+        last.type = 'button'; last.title = 'Последнее сообщение пользователя (#LastMsg)';
+        last.addEventListener('click', () => { sendText('#LastMsg ' + u.name); $('#side').classList.remove('open'); });
+        li.append(nm, last);
+      } else li.append(nm);
       usersEl.append(li);
     }
   }
@@ -716,7 +1060,12 @@ class FakeServer {
     if (text.startsWith('[Сервер] ')) {
       const body = text.slice(9);
       const rn = /^Ваше новое имя: (\S+)/.exec(body);
-      if (rn) { me = rn[1]; $('#meName').textContent = me; }
+      if (rn) { renameHue(me, rn[1]); renameStat(me, rn[1]); me = rn[1]; $('#meName').textContent = me; }
+      const other = /^Пользователь (\S+) сменил имя на (\S+)$/.exec(body);
+      if (other) { renameHue(other[1], other[2]); renameStat(other[1], other[2]); }
+      const dl = /^Личное сообщение для (\S+) доставлено$/.exec(body);
+      if (dl) confirmPrivate(dl[1]);
+      else if (pendingPrivate.length && /^(Пользователь «.*» не найден|Формат личного сообщения|Не удалось доставить|Сначала представьтесь)/.test(body)) pendingPrivate.shift();
       if (rn || /^К чату присоединился |покинул чат$|сменил имя на |^Вы вошли в чат/.test(body)) scheduleRefresh();
       return addSystem(body);
     }
@@ -748,6 +1097,14 @@ class FakeServer {
     const r = await net.send(text);
     if (!r.ok) { if (isUsers) manualUsers--; return toast(r.error || 'Не удалось отправить'); }
     if (!text.startsWith('#')) addMessage(me, text, 'own');
+    const pm = /^#touser\s+(\S+)\s+([\s\S]+)$/i.exec(text);
+    if (pm && pm[1].toLowerCase() !== me.toLowerCase()) pendingPrivate.push({ to: pm[1], text: pm[2] });
+  }
+  function confirmPrivate(to) {
+    const i = pendingPrivate.findIndex((p) => p.to.toLowerCase() === to.toLowerCase());
+    if (i < 0) return;
+    const [p] = pendingPrivate.splice(i, 1);
+    addMessage(me, p.text, 'own private', { to });
   }
   $('#sendForm').addEventListener('submit', (e) => { e.preventDefault(); const t = textI.value; textI.value = ''; sendText(t); });
   textI.addEventListener('keydown', (e) => { if (e.key === 'Escape') textI.value = ''; });
@@ -761,13 +1118,13 @@ class FakeServer {
     e.currentTarget.setAttribute('aria-expanded', String(open));
   });
 
-  function leave() { connected = false; net.disconnect(); showConnect(); }
+  function leave() { connected = false; stopStats(); net.disconnect(); showConnect(); }
   $('#leave').addEventListener('click', leave);
 
   // сервер закрыл соединение (остановлен, выгнал за флуд и т.п.)
   function onClosed() {
     if (!connected) return;
-    connected = false;
+    connected = false; stopStats(); $('#renameBtn').disabled = true;
     const st = $('#status'); st.textContent = 'отключено'; st.classList.add('off');
     textI.disabled = true; sendBtn.disabled = true;
     const box = el('div', 'closed');
@@ -779,6 +1136,310 @@ class FakeServer {
     push(box);
     renderUsers([]);
   }
+
+  /* ---------- статистика чата ---------- */
+  const keyOf = (n) => String(n).toLowerCase();
+  function recordMessage(kind, who, text) {
+    if (/\bprivate\b/.test(kind)) { if (/\bown\b/.test(kind)) stats.privOut++; else stats.privIn++; return; }
+    const own = /\bown\b/.test(kind), name = own ? me : who, len = [...text].length;
+    stats.total++; if (own) stats.own++;
+    stats.chars += len;
+    const rec = stats.by.get(keyOf(name)) || { name, n: 0 };
+    rec.name = name; rec.n++; stats.by.set(keyOf(name), rec);
+    if (!stats.longest || len > stats.longest.len) stats.longest = { who: name, len };
+    stats.last = { who: name, at: Date.now() };
+  }
+  function renameStat(oldName, newName) {
+    const rec = stats.by.get(keyOf(oldName));
+    if (!rec) return;
+    stats.by.delete(keyOf(oldName)); rec.name = newName; stats.by.set(keyOf(newName), rec);
+    if (stats.longest && keyOf(stats.longest.who) === keyOf(oldName)) stats.longest.who = newName;
+    if (stats.last && keyOf(stats.last.who) === keyOf(oldName)) stats.last.who = newName;
+  }
+  function stopStats() { clearInterval(statsTimer); statsTimer = null; stats.until = Date.now(); renderStats(); }
+  function fmtDuration(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+    const p = (n) => String(n).padStart(2, '0');
+    return h ? h + ':' + p(m) + ':' + p(ss) : p(m) + ':' + p(ss);
+  }
+  function renderStats() {
+    const top = [...stats.by.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'ru'));
+    const rows = [
+      ['Сообщений', String(stats.total)],
+      ['Ваших', String(stats.own)],
+      ['Личных (вх. / исх.)', stats.privIn + ' / ' + stats.privOut],
+      ['Участников', String(userCount)],
+      ['Самый активный', top.length ? top[0].name + ' (' + top[0].n + ')' : '—'],
+      ['Средняя длина', stats.total ? (stats.chars / stats.total).toFixed(1).replace('.', ',') : '—'],
+      ['Самое длинное', stats.longest ? stats.longest.who + ', ' + stats.longest.len : '—'],
+      ['Последнее', stats.last ? stats.last.who + ', ' + new Date(stats.last.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '—'],
+      ['В чате', fmtDuration((stats.until || Date.now()) - stats.since)]
+    ];
+    $('#stats').replaceChildren(...rows.flatMap(([k, v]) => [el('dt', null, k), el('dd', null, v)]));
+    const max = top.length ? top[0].n : 1;
+    $('#statsBy').replaceChildren(...top.slice(0, 8).map((r) => {
+      const row = el('div', 'by-row');
+      row.style.setProperty('--h', hueOf(r.name));
+      const nm = el('b', 'nm', r.name), cnt = el('span', null, String(r.n)), bar = el('i', 'bar');
+      bar.style.width = Math.max(4, Math.round(r.n / max * 100)) + '%';
+      row.append(nm, cnt, bar);
+      return row;
+    }));
+  }
+
+  /* ---------- диалог и контекстное меню ---------- */
+  const modalEl = $('#modal'), mForm = $('#mForm'), mInput = $('#mInput'), mErr = $('#mErr'), ctxEl = $('#ctx');
+  let modalCfg = null, modalOpener = null, ctxOpener = null;
+  function openModal(cfg) {
+    closeCtx(false);
+    modalCfg = cfg; modalOpener = document.activeElement;
+    $('#mTitle').textContent = cfg.title; $('#mLead').textContent = cfg.lead || '';
+    mInput.value = cfg.value || ''; mInput.placeholder = cfg.placeholder || ''; mInput.maxLength = cfg.maxLength || 400;
+    mInput.removeAttribute('aria-invalid'); mErr.textContent = '';
+    $('#mOk').textContent = cfg.ok || 'OK';
+    modalEl.hidden = false; mInput.focus(); mInput.select();
+  }
+  function closeModal() {
+    modalEl.hidden = true; modalCfg = null;
+    if (modalOpener && document.contains(modalOpener) && !modalOpener.disabled) modalOpener.focus();
+  }
+  mForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!modalCfg) return;
+    const v = mInput.value.trim(), err = modalCfg.validate ? modalCfg.validate(v) : null;
+    if (err) { mErr.textContent = err; mInput.setAttribute('aria-invalid', 'true'); mInput.focus(); return; }
+    const done = modalCfg.onOk; closeModal(); done(v);
+  });
+  $('#mCancel').addEventListener('click', closeModal);
+  modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl) closeModal(); });
+
+  function closeCtx(refocus) {
+    if (ctxEl.hidden) return;
+    ctxEl.hidden = true;
+    if (refocus && ctxOpener && document.contains(ctxOpener) && !ctxOpener.disabled) ctxOpener.focus();
+    ctxOpener = null;
+  }
+  function openCtx(x, y, title, items, opener) {
+    closeCtx(false); ctxOpener = opener || null;
+    const nodes = [];
+    const head = el('div', 'ctx-title', title); head.setAttribute('role', 'presentation'); nodes.push(head);
+    for (const it of items) {
+      const b = el('button', null, it.label); b.type = 'button'; b.setAttribute('role', 'menuitem');
+      b.addEventListener('click', () => { closeCtx(false); it.run(); });
+      nodes.push(b);
+    }
+    ctxEl.replaceChildren(...nodes);
+    ctxEl.hidden = false;
+    const r = ctxEl.getBoundingClientRect();
+    ctxEl.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
+    ctxEl.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + 'px';
+    ctxEl.querySelector('button').focus();
+  }
+  ctxEl.addEventListener('keydown', (e) => {
+    const btns = [...ctxEl.querySelectorAll('button')], i = btns.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); btns[(i + 1) % btns.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); btns[(i - 1 + btns.length) % btns.length].focus(); }
+    else if (e.key === 'Tab') closeCtx(false);
+  });
+  document.addEventListener('pointerdown', (e) => { if (!ctxEl.hidden && !ctxEl.contains(e.target)) closeCtx(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { if (!modalEl.hidden) closeModal(); else closeCtx(true); }
+    else if (e.key === 'Tab' && !modalEl.hidden) {            // фокус не уходит из диалога
+      const f = [mInput, $('#mCancel'), $('#mOk')], i = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(i + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+    }
+  });
+  window.addEventListener('blur', () => closeCtx(false));
+  window.addEventListener('resize', () => closeCtx(false));
+
+  function validateName(v) {
+    if (!v) return 'Введите имя';
+    if (/\s/.test(v)) return 'Имя — одно слово, без пробелов';
+    if ([...v].length > 16) return 'Имя не длиннее 16 символов';
+    const lat = /[A-Za-z]/.test(v), cyr = /[А-Яа-яЁёІіЇїЄєЎўҐґ]/.test(v);
+    if (!lat && !cyr) return 'Нужна хотя бы одна буква';
+    if (lat && cyr) return 'Нельзя смешивать латиницу и кириллицу';
+    if (!/^[A-Za-z0-9_.\-А-Яа-яЁёІіЇїЄєЎўҐґ]+$/.test(v)) return 'Допустимы буквы, цифры и символы _ - .';
+    return null;
+  }
+  function openRename() {
+    openModal({ title: 'Сменить имя', lead: 'Одно слово: буквы (латиница или кириллица), цифры, _ - .', value: me, placeholder: 'Новое имя', maxLength: 16,
+      ok: 'Сменить', validate: validateName, onOk: (v) => { if (v.toLowerCase() !== me.toLowerCase() || v !== me) sendText('#NewName ' + v); } });
+  }
+  function openPrivate(name) {
+    openModal({ title: 'Личное сообщение', lead: 'Получатель: ' + name, placeholder: 'Текст сообщения', ok: 'Отправить',
+      validate: (v) => (v ? null : 'Введите сообщение'), onOk: (v) => sendText('#ToUser ' + name + ' ' + v) });
+  }
+  function openUserMenu(x, y, u, opener) {
+    if (u.me) openCtx(x, y, u.name + ' (вы)', [{ label: 'Сменить имя…', run: openRename }], opener);
+    else openCtx(x, y, u.name, [
+      { label: 'Личное сообщение…', run: () => openPrivate(u.name) },
+      { label: 'Последнее сообщение', run: () => sendText('#LastMsg ' + u.name) }
+    ], opener);
+  }
+  $('#renameBtn').addEventListener('click', openRename);
+
+  /* ---------- вкладки ---------- */
+  const tabEls = { chat: $('#tabChat'), graph: $('#tabGraph') }, panelEls = { chat: $('#panelChat'), graph: $('#panelGraph') };
+  function showTab(name) {
+    for (const k of Object.keys(tabEls)) {
+      const on = k === name;
+      tabEls[k].setAttribute('aria-selected', String(on)); tabEls[k].tabIndex = on ? 0 : -1; panelEls[k].hidden = !on;
+    }
+    if (name === 'graph') requestAnimationFrame(() => { if (graph.model) drawGraph(); else buildGraph(); });
+  }
+  tabEls.chat.addEventListener('click', () => showTab('chat'));
+  tabEls.graph.addEventListener('click', () => showTab('graph'));
+  $('.tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const next = document.activeElement === tabEls.chat ? 'graph' : 'chat';
+    showTab(next); tabEls[next].focus();
+  });
+
+  /* ---------- график функции: расчёт и рисование выполняются здесь, в клиенте ---------- */
+  const gexpr = $('#gexpr'), gleft = $('#gleft'), gright = $('#gright'), gerr = $('#gerr'), gwrap = $('#gwrap'), gcanvas = $('#gcanvas'), ghover = $('#ghover');
+  const graph = { model: null, hoverX: null };
+  const GM = { L: 18, R: 28, T: 18, B: 40 };                  // поля вокруг поля графика
+  gexpr.value = store.get('graph.expr', gexpr.value); gleft.value = store.get('graph.left', gleft.value); gright.value = store.get('graph.right', gright.value);
+
+  function setGraphError(e) {
+    gerr.textContent = e ? e.message : '';
+    const map = { expr: gexpr, left: gleft, right: gright };
+    for (const k of Object.keys(map)) { if (e && e.field === k) map[k].setAttribute('aria-invalid', 'true'); else map[k].removeAttribute('aria-invalid'); }
+    if (e && map[e.field]) map[e.field].focus();
+  }
+  function buildGraph() {
+    try {
+      const c = MathLib.compile(gexpr.value, 'expr');
+      const a = MathLib.parseBound(gleft.value, 'Левая граница', 'left');
+      const b = MathLib.parseBound(gright.value, 'Правая граница', 'right');
+      if (!(a < b)) throw new MathLib.ExprError('Левая граница должна быть меньше правой', 'left');
+      if (b - a < 1e-6) throw new MathLib.ExprError('Границы слишком близки друг к другу', 'right');
+      if (Math.max(Math.abs(a), Math.abs(b)) > 1e9) throw new MathLib.ExprError('Границы слишком велики (по модулю не больше 1 000 000 000)', 'right');
+      setGraphError(null);
+      graph.model = { fn: c.fn, a, b };
+      store.set('graph.expr', gexpr.value); store.set('graph.left', gleft.value); store.set('graph.right', gright.value);
+      drawGraph();
+    } catch (e) {
+      if (e instanceof MathLib.ExprError) setGraphError(e); else throw e;
+    }
+  }
+  $('#gform').addEventListener('submit', (e) => { e.preventDefault(); buildGraph(); });
+  document.querySelectorAll('.pchip').forEach((b) => b.addEventListener('click', () => {
+    gexpr.value = b.dataset.expr; gleft.value = b.dataset.a; gright.value = b.dataset.b; buildGraph();
+  }));
+
+  function drawGraph() {
+    if (panelEls.graph.hidden) return;
+    const w = gwrap.clientWidth, h = gwrap.clientHeight;
+    if (w < 10 || h < 10) return;
+    const dpr = window.devicePixelRatio || 1, W = Math.round(w * dpr), H = Math.round(h * dpr);
+    if (gcanvas.width !== W || gcanvas.height !== H) { gcanvas.width = W; gcanvas.height = H; }
+    const g = gcanvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const css = getComputedStyle(document.documentElement), c = (n) => css.getPropertyValue(n).trim() || '#000';
+    const ink2 = c('--ink-2'), ink3 = c('--ink-3'), accent = c('--link'), family = getComputedStyle(document.body).fontFamily;
+    const line = (x1, y1, x2, y2) => { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); };
+    g.textBaseline = 'alphabetic';
+    const m = graph.model;
+    if (!m) {
+      g.fillStyle = ink3; g.font = '14px ' + family; g.textAlign = 'center';
+      g.fillText('Введите функцию и границы, затем нажмите «Построить»', w / 2, h / 2);
+      return;
+    }
+    const px0 = GM.L, px1 = w - GM.R, py0 = GM.T, py1 = h - GM.B, pw = px1 - px0, ph = py1 - py0;
+    if (pw < 60 || ph < 60) return;
+    const { fn, a, b } = m;
+    // левая и правая границы всегда лежат на краях поля: при изменении размера окна меняется только масштаб
+    const mapX = (x) => px0 + (x - a) / (b - a) * pw;
+    const n = Math.max(2, Math.ceil(pw * 2)), ys = new Float64Array(n + 1);
+    for (let i = 0; i <= n; i++) ys[i] = MathLib.evalAt(fn, a + (b - a) * i / n);
+    const rng = MathLib.yRange(ys);
+
+    g.strokeStyle = ink3; g.globalAlpha = .45; g.lineWidth = 1; g.strokeRect(px0 + .5, py0 + .5, pw, ph); g.globalAlpha = 1;
+
+    if (!rng) {
+      g.fillStyle = ink2; g.font = '14px ' + family; g.textAlign = 'center';
+      g.fillText('Функция не определена на отрезке [' + MathLib.fmt(a) + '; ' + MathLib.fmt(b) + ']', w / 2, py0 + ph / 2);
+    } else {
+      const { lo, hi } = rng, mapY = (y) => py1 - (y - lo) / (hi - lo) * ph;
+      const xt = MathLib.ticks(a, b, MathLib.niceStep(b - a, Math.max(2, Math.floor(pw / 80))));
+      const yt = MathLib.ticks(lo, hi, MathLib.niceStep(hi - lo, Math.max(2, Math.floor(ph / 55))));
+      g.lineWidth = 1; g.strokeStyle = ink3; g.globalAlpha = .22;
+      for (const t of xt) { const X = Math.round(mapX(t)) + .5; line(X, py0, X, py1); }
+      for (const t of yt) { const Y = Math.round(mapY(t)) + .5; line(px0, Y, px1, Y); }
+      g.globalAlpha = 1;
+
+      const ax = (a <= 0 && 0 <= b) ? mapX(0) : px0, ay = (lo <= 0 && 0 <= hi) ? mapY(0) : py1;
+      g.strokeStyle = ink2; g.fillStyle = ink2; g.lineWidth = 1.5;
+      line(px0, ay, px1, ay); line(ax, py1, ax, py0);
+      g.beginPath(); g.moveTo(px1 + 8, ay); g.lineTo(px1, ay - 4); g.lineTo(px1, ay + 4); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(ax, py0 - 8); g.lineTo(ax - 4, py0); g.lineTo(ax + 4, py0); g.closePath(); g.fill();
+
+      g.font = '12px ' + family; g.lineWidth = 1;
+      const xInside = ay <= py1 - 20, yLeft = ax - px0 >= 46, crossed = ax > px0 && ay < py1;
+      g.textAlign = 'center';
+      for (const t of xt) {
+        const X = mapX(t);
+        if ((t === 0 && crossed) || X - px0 < 30 || px1 - X < 30) continue;
+        if (ay < py1) line(X, ay - 3, X, ay + 3);
+        g.fillText(MathLib.fmt(t), X, xInside ? ay + 17 : py1 + 16);
+      }
+      g.textAlign = yLeft ? 'right' : 'left';
+      for (const t of yt) {
+        const Y = mapY(t);
+        if ((t === 0 && crossed) || Y < py0 + 8 || Y > py1 - 6) continue;
+        if (ax > px0) line(ax - 3, Y, ax + 3, Y);
+        g.fillText(MathLib.fmt(t), yLeft ? ax - 8 : ax + 8, Y + 4);
+      }
+      if (crossed) { g.textAlign = 'right'; g.fillText('0', ax - 6, ay + 15); }
+      g.font = 'italic 13px ' + family; g.textAlign = 'right'; g.fillText('x', px1 - 2, ay - 9);
+      g.textAlign = 'left'; g.fillText('y', ax + 9, py0 + 11);
+
+      g.save(); g.beginPath(); g.rect(px0, py0, pw, ph); g.clip();
+      g.strokeStyle = accent; g.lineWidth = 2.4; g.lineJoin = 'round'; g.lineCap = 'round';
+      g.beginPath();
+      let pen = false, prev = 0;
+      const viewH = hi - lo;
+      for (let i = 0; i <= n; i++) {
+        const y = ys[i];
+        if (!Number.isFinite(y)) { pen = false; continue; }              // разрыв: функция не определена
+        const X = mapX(a + (b - a) * i / n), Y = Math.max(-1e5, Math.min(1e5, mapY(y)));
+        if (!pen || Math.abs(y - prev) > 1.5 * viewH) g.moveTo(X, Y); else g.lineTo(X, Y);   // скачок (полюс): линию не тянем
+        pen = true; prev = y;
+      }
+      g.stroke();
+      if (graph.hoverX !== null && graph.hoverX >= a && graph.hoverX <= b) {
+        const hx = mapX(graph.hoverX), hy = MathLib.evalAt(fn, graph.hoverX);
+        g.strokeStyle = ink3; g.lineWidth = 1; g.setLineDash([4, 4]); line(hx, py0, hx, py1); g.setLineDash([]);
+        if (Number.isFinite(hy) && hy >= lo && hy <= hi) {
+          g.fillStyle = accent; g.strokeStyle = c('--ink'); g.beginPath(); g.arc(hx, mapY(hy), 4.5, 0, Math.PI * 2); g.fill(); g.stroke();
+        }
+      }
+      g.restore();
+    }
+    // границы выводимого участка — на своих местах по краям поля
+    g.strokeStyle = accent; g.fillStyle = accent; g.lineWidth = 1.5; g.font = 'bold 13px ' + family;
+    line(px0, py1, px0, py1 + 7); line(px1, py1, px1, py1 + 7);
+    g.textAlign = 'left'; g.fillText(MathLib.fmt(a), px0, h - 8);
+    g.textAlign = 'right'; g.fillText(MathLib.fmt(b), px1, h - 8);
+  }
+  gcanvas.addEventListener('pointermove', (e) => {
+    const m = graph.model; if (!m) return;
+    const r = gcanvas.getBoundingClientRect(), px0 = GM.L, pw = r.width - GM.L - GM.R, px = e.clientX - r.left;
+    if (px < px0 || px > px0 + pw) return clearHover();
+    graph.hoverX = m.a + (px - px0) / pw * (m.b - m.a);
+    const y = MathLib.evalAt(m.fn, graph.hoverX);
+    ghover.textContent = 'x = ' + MathLib.fmt(graph.hoverX) + '    f(x) = ' + (Number.isFinite(y) ? MathLib.fmt(y) : 'не определена');
+    drawGraph();
+  });
+  function clearHover() { if (graph.hoverX === null) return; graph.hoverX = null; ghover.textContent = ''; drawGraph(); }
+  gcanvas.addEventListener('pointerleave', clearHover);
+  let gRaf = 0;
+  new ResizeObserver(() => { cancelAnimationFrame(gRaf); gRaf = requestAnimationFrame(drawGraph); }).observe(gwrap);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawGraph);
+
 
   loadSettings();
 })();
