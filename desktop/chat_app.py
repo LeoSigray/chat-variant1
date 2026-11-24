@@ -25,6 +25,7 @@ SETTINGS_FILE = Path.home() / ".chat_variant1.json"
 DEFAULT_HOST = "170.168.13.61"
 LEGACY_HOSTS = {"10.160.48.122"}
 DEFAULT_SETTINGS = {"name": "", "host": DEFAULT_HOST, "port": "5777", "com_port": ""}
+NAME_CHANGED_PREFIX = "[Сервер] Ваше новое имя: "
 MAX_LINE_BYTES = 1024          # как MSG_MAX_BYTES в common.h
 HANDSHAKE_TIMEOUT = 8.0        # секунд на приветствие и регистрацию имени
 SERIAL_BAUD = 9600
@@ -302,6 +303,7 @@ class Api:
     def __init__(self):
         self._window = None
         self._arduino = ArduinoOutput()
+        self._my_name = ""            # своё имя: сервер не возвращает отправителю его сообщения
         self._session = Session(self._push_line, self._push_closed)
 
     def _bind(self, window):
@@ -314,6 +316,8 @@ class Api:
             pass                          # окно уже закрывается
 
     def _push_line(self, text):
+        if text.startswith(NAME_CHANGED_PREFIX):          # ответ на #NewName
+            self._my_name = text[len(NAME_CHANGED_PREFIX):].strip()
         self._arduino.send_chat_line(text)
         self._js("window.onChatLine(%s)" % json.dumps(text, ensure_ascii=False))
 
@@ -392,6 +396,7 @@ class Api:
         except OSError as e:
             self._arduino.close()
             return {"ok": False, "error": "Не удалось подключиться: %s" % (e.strerror or e)}
+        self._my_name = name
         return {"ok": True, "lines": lines}
 
     def start(self):
@@ -408,6 +413,9 @@ class Api:
             self._session.send(text)
         except (OSError, ConnectionError):
             return {"ok": False, "error": "Нет соединения с сервером"}
+        if not text.startswith("#") and self._my_name:
+            # своё сообщение тоже выводим на Arduino (сервер нам его не присылает)
+            self._arduino.send_chat_line("%s: %s" % (self._my_name, text))
         return {"ok": True}
 
     def disconnect(self):

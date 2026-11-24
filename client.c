@@ -218,6 +218,36 @@ static void forward_to_arduino(const char *line)
         serial_send_line(transformed);
 }
 
+/* Своё имя клиента: сервер не присылает отправителю его же сообщения, поэтому
+ * без него на собственный Arduino попадали бы только чужие сообщения. Имя меняется
+ * по #NewName (ответ сервера «Ваше новое имя: ...»), его читают два потока. */
+static char g_my_name[NAME_MAX_BYTES + 1];
+
+static void set_my_name(const char *name)
+{
+    con_lock();
+    snprintf(g_my_name, sizeof(g_my_name), "%s", name);
+    con_unlock();
+}
+
+/* Своё сообщение в общий чат -> ЗаБоР -> Arduino (команды «#...» не выводятся). */
+static void forward_own_to_arduino(const char *msg)
+{
+    char line[MSG_MAX_BYTES + NAME_MAX_BYTES + 4];
+    char name[NAME_MAX_BYTES + 1];
+
+    if (!serial_enabled() || msg[0] == '#')
+        return;
+    con_lock();
+    snprintf(name, sizeof(name), "%s", g_my_name);
+    con_unlock();
+    if (name[0] == '\0')
+        return;
+    snprintf(line, sizeof(line), "%s: %s", name, msg);
+    sanitize_text(line);                 /* то же, что делает сервер перед рассылкой */
+    forward_to_arduino(line);
+}
+
 /* Спросить у пользователя имя (одно слово). 0 — успех, -1 — конец ввода. */
 static int ask_name(char *name, size_t name_size, const char *prompt)
 {
@@ -344,6 +374,8 @@ static void *receiver_thread(void *arg)
     (void)arg;
 
     while (recv_line(&g_reader, line, sizeof(line)) > 0) {
+        if (str_starts_with(line, SRV_NAME_CHANGED))
+            set_my_name(line + strlen(SRV_NAME_CHANGED));
         show_line(line);
         forward_to_arduino(line);
     }
@@ -500,6 +532,7 @@ int main(int argc, char **argv)
         console_pause_if_owned();
         return 1;
     }
+    set_my_name(name);                  /* имя принято сервером: его используем и для Arduino */
 
 #ifdef _WIN32
     th = (HANDLE)_beginthreadex(NULL, 0, receiver_thread, NULL, 0, NULL);
@@ -538,6 +571,7 @@ int main(int argc, char **argv)
             send_error = 1;
             break;
         }
+        forward_own_to_arduino(msg);
     }
 
     /* Корректное завершение: закрываем соединение и дожидаемся потока приёма */

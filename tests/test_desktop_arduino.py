@@ -72,6 +72,33 @@ assert port.writes == ["Иван: ПрИвЕт\n".encode("utf-8")], port.writes
 arduino.close()
 assert port.closed
 
+# Сервер не возвращает отправителю его же сообщения, поэтому свои сообщения
+# клиент сам отправляет на Arduino (иначе один клиент не видел бы ничего).
+own_port = FakePort()
+api = chat_app.Api()
+api._arduino = chat_app.ArduinoOutput(lambda *args, **kwargs: own_port)
+api._arduino.open("COM_TEST")
+api._my_name = "Иван"
+api._session = types.SimpleNamespace(send=lambda text: None)
+
+assert api.send("привет мир") == {"ok": True}
+api._arduino.flush_for_test()
+assert own_port.writes == ["Иван: ПрИвЕт МиР\n".encode("utf-8")], own_port.writes
+
+own_port.writes.clear()
+api.send("#users")                      # команды на Arduino не идут
+api.send("#ToUser Мария секрет")
+api._arduino.flush_for_test()
+assert own_port.writes == [], own_port.writes
+
+api._push_line("[Сервер] Ваше новое имя: Пётр")   # ответ на #NewName
+api._arduino.flush_for_test()
+assert api._my_name == "Пётр" and own_port.writes == [], (api._my_name, own_port.writes)
+api.send("тест")
+api._arduino.flush_for_test()
+assert own_port.writes == ["Пётр: ТеСт\n".encode("utf-8")], own_port.writes
+api._arduino.close()
+
 html = HTML_PATH.read_text(encoding="utf-8")
 assert 'id="com"' in html
 assert "Без Arduino" in html
