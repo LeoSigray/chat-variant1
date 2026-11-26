@@ -253,20 +253,41 @@
   .modal-row .btn { height: 44px; font-size: 15px; }
 
   /* ---------- график функции ---------- */
-  #panelGraph { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; }
-  .gform { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-  .gform .gexpr { flex: 1 1 240px; }
-  .gform .gbound { flex: 0 1 130px; }
-  .gform .input { height: 46px; }
-  .gform .btn { height: 46px; padding: 0 22px; font-size: 15px; }
-  .gform .mono { font-family: var(--mono); }
+  #panelGraph { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; overflow-y: auto; }   /* в маленьком окне панель прокручивается, поле графика не сжимается меньше 300px */
+  .gform { display: grid; gap: 10px; }
+  .gfuncs { display: grid; gap: 8px; }
+  .gfn { display: flex; align-items: center; gap: 8px; }
+  .gfn .gfl { font-family: var(--mono); font-size: 14px; font-weight: 700; white-space: nowrap; color: var(--ink-2); }
+  .gfn .input { flex: 1 1 auto; min-width: 0; height: 42px; font-family: var(--mono); }
+  .gcol { width: 34px; height: 34px; flex: none; padding: 0; border: 1px solid var(--glass-line); border-radius: 10px; background: none; cursor: pointer; }
+  .gcol::-webkit-color-swatch-wrapper { padding: 3px; }
+  .gcol::-webkit-color-swatch { border: 0; border-radius: 7px; }
+  .gdel { flex: none; font-size: 18px; line-height: 1; }
+  .gdel:disabled { opacity: .35; cursor: default; }
+  .grow { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
+  .gadd { height: 34px; }
+  .gnote { font-size: 12.5px; color: var(--ink-3); align-self: center; }
+  .gnote code { font-family: var(--mono); color: var(--ink-2); }
+  .gbounds .gb { flex: 1 1 90px; max-width: 150px; }
+  .gbounds .input { height: 42px; }
+  .gbounds .btn { height: 42px; padding: 0 22px; font-size: 15px; margin-left: auto; }
+  .gparams { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  .gp { display: flex; align-items: center; gap: 8px; flex: 1 1 200px; }
+  .gp label { font-family: var(--mono); font-weight: 700; font-size: 15px; color: var(--ink-2); }
+  .gp input[type="range"] { flex: 1 1 auto; min-width: 80px; accent-color: var(--blue); }
+  .gp .gpv { width: 70px; height: 34px; padding: 0 10px; font-size: 14px; border-radius: 10px; font-variant-numeric: tabular-nums; }
+  .gopts summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--link); width: fit-content; }
+  .gopts-row { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; padding-top: 8px; font-size: 13.5px; color: var(--ink-2); }
+  .gopts-row select { margin-left: 6px; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--field-line); border-radius: 8px; padding: 3px 6px; }
+  .gchk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .gchk input { accent-color: var(--blue); width: 16px; height: 16px; }
   .pchips { display: flex; gap: 8px; flex-wrap: wrap; }
   .pchip { height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; font-family: var(--mono); cursor: pointer; color: var(--link); background: var(--chip); border: 1px solid var(--glass-line); }
   .pchip:hover { background: var(--hover); }
   .pchip:focus-visible { outline: 3px solid rgba(10,132,255,.55); outline-offset: 2px; }
   .gerr { color: var(--danger); font-size: 14px; font-weight: 600; min-height: 0; }
   .gerr:empty { display: none; }
-  .gwrap { position: relative; flex: 1 1 auto; min-height: 220px; border-radius: 18px; background: var(--field); border: 1px solid var(--field-line); box-shadow: inset 0 1px 3px rgba(40,100,190,.14); overflow: hidden; }
+  .gwrap { position: relative; flex: 1 0 300px; min-height: 300px; border-radius: 18px; background: var(--field); border: 1px solid var(--field-line); box-shadow: inset 0 1px 3px rgba(40,100,190,.14); overflow: hidden; }
   .gwrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   .ghover { min-height: 20px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; }
   .ghint { color: var(--ink-3); font-size: 12px; }
@@ -294,7 +315,6 @@
     .composer { padding: 8px 12px 12px; }
     .tabs { padding: 8px 12px 0; }
     #panelGraph { padding: 10px 12px 12px; }
-    .gform .gbound { flex: 1 1 110px; }
   }
 </style>
 <script>document.documentElement.dataset.mode = window.APP_MODE || 'demo';</script>
@@ -395,28 +415,53 @@
 
       <section class="panel" id="panelGraph" role="tabpanel" aria-labelledby="tabGraph" hidden>
         <form class="gform" id="gform" novalidate autocomplete="off">
-          <div class="field gexpr">
-            <label for="gexpr">f(x) =</label>
-            <input class="input mono" id="gexpr" name="gexpr" value="sin(x)" placeholder="например, cos(x)/x+x*x" spellcheck="false" autocapitalize="off" aria-describedby="gerr">
+          <div class="gfuncs" id="gfuncs" aria-label="Функции"></div>
+          <div class="grow">
+            <button class="ghost gadd" id="gadd" type="button">+ Добавить функцию</button>
+            <span class="gnote">Параметры a, b, c можно использовать в формулах: <code>a*sin(b*x)+c</code></span>
           </div>
-          <div class="field gbound">
-            <label for="gleft">Левая граница x</label>
-            <input class="input" id="gleft" name="gleft" value="-3" inputmode="decimal" spellcheck="false" aria-describedby="gerr">
+          <div class="grow gbounds">
+            <div class="field gb"><label for="gleft">x от</label><input class="input" id="gleft" value="-3" inputmode="decimal" spellcheck="false" aria-describedby="gerr"></div>
+            <div class="field gb"><label for="gright">x до</label><input class="input" id="gright" value="18" inputmode="decimal" spellcheck="false" aria-describedby="gerr"></div>
+            <div class="field gb"><label for="gymin">y от</label><input class="input" id="gymin" placeholder="авто" inputmode="decimal" spellcheck="false" aria-describedby="gerr"></div>
+            <div class="field gb"><label for="gymax">y до</label><input class="input" id="gymax" placeholder="авто" inputmode="decimal" spellcheck="false" aria-describedby="gerr"></div>
+            <button class="btn" id="gplot" type="submit">Построить</button>
           </div>
-          <div class="field gbound">
-            <label for="gright">Правая граница x</label>
-            <input class="input" id="gright" name="gright" value="18" inputmode="decimal" spellcheck="false" aria-describedby="gerr">
+          <div class="gparams" aria-label="Параметры a, b, c">
+            <div class="gp">
+              <label for="gp_a">a</label>
+              <input type="range" id="gp_a" min="-10" max="10" step="0.1" value="1">
+              <input class="input gpv" id="gpv_a" value="1" inputmode="decimal" spellcheck="false" aria-label="Значение параметра a">
+            </div>
+            <div class="gp">
+              <label for="gp_b">b</label>
+              <input type="range" id="gp_b" min="-10" max="10" step="0.1" value="1">
+              <input class="input gpv" id="gpv_b" value="1" inputmode="decimal" spellcheck="false" aria-label="Значение параметра b">
+            </div>
+            <div class="gp">
+              <label for="gp_c">c</label>
+              <input type="range" id="gp_c" min="-10" max="10" step="0.1" value="0">
+              <input class="input gpv" id="gpv_c" value="0" inputmode="decimal" spellcheck="false" aria-label="Значение параметра c">
+            </div>
           </div>
-          <button class="btn" id="gplot" type="submit">Построить</button>
+          <details class="gopts">
+            <summary>Настройки вида</summary>
+            <div class="gopts-row">
+              <label>Точек <select id="gpoints"><option value="auto">авто</option><option value="200">200</option><option value="1000">1000</option><option value="5000">5000</option></select></label>
+              <label>Толщина линии <select id="gwidth"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
+              <label class="gchk"><input type="checkbox" id="ggrid" checked> Сетка</label>
+              <label class="gchk"><input type="checkbox" id="glegend" checked> Легенда</label>
+            </div>
+          </details>
         </form>
         <div class="pchips" aria-label="Примеры функций">
           <button class="pchip" type="button" data-expr="sin(x)" data-a="-3" data-b="18">sin(x)</button>
           <button class="pchip" type="button" data-expr="cos(x)/x+x*x" data-a="-3" data-b="18">cos(x)/x+x*x</button>
-          <button class="pchip" type="button" data-expr="x^2-4" data-a="-5" data-b="5">x^2-4</button>
+          <button class="pchip" type="button" data-expr="a*sin(b*x)+c" data-a="-10" data-b="10">a*sin(b*x)+c</button>
+          <button class="pchip" type="button" data-expr="a*x^2+b*x+c" data-a="-5" data-b="5">a*x^2+b*x+c</button>
           <button class="pchip" type="button" data-expr="1/x" data-a="-5" data-b="5">1/x</button>
           <button class="pchip" type="button" data-expr="tan(x)" data-a="-6" data-b="6">tan(x)</button>
           <button class="pchip" type="button" data-expr="exp(-x^2)" data-a="-4" data-b="4">exp(-x^2)</button>
-          <button class="pchip" type="button" data-expr="sin(x)/x" data-a="-20" data-b="20">sin(x)/x</button>
         </div>
         <div class="gerr" id="gerr" role="alert" aria-live="polite"></div>
         <div class="gwrap" id="gwrap">
@@ -681,8 +726,10 @@ const MathLib = (() => {
   }
 
   // Формула -> функция x => число. Поддержано: + - * / ^ (**), скобки, неявное умножение (2x, 2(x+1)),
-  // константы pi и e, функции из FUNCS. Выполнение произвольного кода (eval) не используется.
-  function compile(src, field) {
+  // константы pi и e, функции из FUNCS, параметры из env (например { a: 1, b: 2, c: 0 } —
+  // их значения читаются при каждом вычислении, поэтому ползунки меняют график без повторного разбора).
+  // Выполнение произвольного кода (eval) не используется.
+  function compile(src, field, env) {
     field = field || 'expr';
     const toks = tokenize(String(src), field);
     if (!toks.length) throw new ExprError('Введите функцию, например sin(x)', field);
@@ -728,6 +775,7 @@ const MathLib = (() => {
       if (t.t === 'id') {
         p++;
         if (t.v === 'x') { usesX = true; return (x) => x; }
+        if (env && Object.prototype.hasOwnProperty.call(env, t.v)) { const k = t.v; return () => env[k]; }
         if (Object.prototype.hasOwnProperty.call(CONSTS, t.v)) { const v = CONSTS[t.v]; return () => v; }
         if (Object.prototype.hasOwnProperty.call(FUNCS, t.v)) {
           const fn = FUNCS[t.v];
@@ -743,7 +791,7 @@ const MathLib = (() => {
           const f = fn.f;
           return (x) => f(...args.map((a) => a(x)));
         }
-        throw err('Неизвестное имя «' + t.raw + '». Можно x, pi, e и функции sin, cos, tan, exp, ln, log, sqrt, abs, pow…');
+        throw err('Неизвестное имя «' + t.raw + '». Можно x' + (env ? ', ' + Object.keys(env).join(', ') : '') + ', pi, e и функции sin, cos, tan, exp, ln, log, sqrt, abs, pow… (умножение пишите явно: a*x)');
       }
       if (t.v === '(') {
         p++;
@@ -1317,29 +1365,104 @@ const MathLib = (() => {
   });
 
   /* ---------- график функции: расчёт и рисование выполняются здесь, в клиенте ---------- */
-  const gexpr = $('#gexpr'), gleft = $('#gleft'), gright = $('#gright'), gerr = $('#gerr'), gwrap = $('#gwrap'), gcanvas = $('#gcanvas'), ghoverXY = $('#ghoverXY');
-  // view — видимая область после масштабирования/сдвига; null — границы из формы и авто-масштаб по Y
+  const gleft = $('#gleft'), gright = $('#gright'), gymin = $('#gymin'), gymax = $('#gymax'), gerr = $('#gerr'), gwrap = $('#gwrap'), gcanvas = $('#gcanvas'), ghoverXY = $('#ghoverXY');
+  const gfuncsEl = $('#gfuncs');
+  const FN_COLORS = ['#2f7cf6', '#e0457b', '#1f9d55', '#f08a00', '#8b5cf6'];
+  const SUB = ['₁', '₂', '₃', '₄', '₅'];
+  const MAX_FNS = 5;
+  // view — видимая область после масштабирования/сдвига; null — границы из формы
   const graph = { model: null, hoverX: null, view: null, cur: null };
   const GM = { L: 18, R: 28, T: 18, B: 40 };                  // поля вокруг поля графика
-  gexpr.value = store.get('graph.expr', gexpr.value); gleft.value = store.get('graph.left', gleft.value); gright.value = store.get('graph.right', gright.value);
+  const params = { a: 1, b: 1, c: 0 };                         // параметры формул, меняются ползунками
+  const opts = { points: 'auto', width: 2, grid: true, legend: true };
+  let fnRows = [];                                              // [{ expr, color }]
+
+  const loadJSON = (k, d) => { try { const v = JSON.parse(store.get(k, '')); return v == null ? d : v; } catch (e) { return d; } };
+  fnRows = loadJSON('graph.fns', null) || [{ expr: store.get('graph.expr', 'sin(x)'), color: FN_COLORS[0] }];
+  Object.assign(params, loadJSON('graph.params', {}));
+  Object.assign(opts, loadJSON('graph.opts', {}));
+  gleft.value = store.get('graph.left', gleft.value); gright.value = store.get('graph.right', gright.value);
+  gymin.value = store.get('graph.ymin', ''); gymax.value = store.get('graph.ymax', '');
+
+  function saveGraphState() {
+    store.set('graph.fns', JSON.stringify(fnRows)); store.set('graph.params', JSON.stringify(params)); store.set('graph.opts', JSON.stringify(opts));
+    store.set('graph.left', gleft.value); store.set('graph.right', gright.value); store.set('graph.ymin', gymin.value); store.set('graph.ymax', gymax.value);
+  }
+
+  function renderFnRows() {
+    gfuncsEl.replaceChildren(...fnRows.map((row, i) => {
+      const div = el('div', 'gfn');
+      const col = el('input', 'gcol'); col.type = 'color'; col.value = row.color; col.setAttribute('aria-label', 'Цвет графика ' + (i + 1));
+      col.addEventListener('input', () => { row.color = col.value; saveGraphState(); drawGraph(); });
+      const id = i === 0 ? 'gexpr' : 'gexpr' + (i + 1);
+      const lab = el('label', 'gfl', 'f' + SUB[i] + '(x) ='); lab.htmlFor = id;
+      const inp = el('input', 'input'); inp.id = id; inp.value = row.expr; inp.spellcheck = false;
+      inp.setAttribute('autocapitalize', 'off'); inp.setAttribute('aria-describedby', 'gerr');
+      inp.placeholder = i === 0 ? 'например, cos(x)/x+x*x' : 'ещё одна функция, например a*x+b';
+      inp.addEventListener('input', () => { row.expr = inp.value; });
+      const del = el('button', 'icon-btn gdel', '×'); del.type = 'button'; del.setAttribute('aria-label', 'Удалить функцию ' + (i + 1)); del.title = 'Удалить функцию';
+      del.disabled = fnRows.length === 1;
+      del.addEventListener('click', () => { fnRows.splice(i, 1); renderFnRows(); buildGraph(); });
+      div.append(col, lab, inp, del);
+      return div;
+    }));
+    $('#gadd').disabled = fnRows.length >= MAX_FNS;
+  }
+  $('#gadd').addEventListener('click', () => {
+    if (fnRows.length >= MAX_FNS) return;
+    const used = new Set(fnRows.map((r) => r.color));
+    fnRows.push({ expr: '', color: FN_COLORS.find((c) => !used.has(c)) || FN_COLORS[fnRows.length % FN_COLORS.length] });
+    renderFnRows();
+    $('#gexpr' + fnRows.length).focus();
+  });
+
+  // параметры a, b, c: ползунок и поле ввода связаны, график перерисовывается сразу
+  for (const k of Object.keys(params)) {
+    const range = $('#gp_' + k), box = $('#gpv_' + k);
+    range.value = params[k]; box.value = String(params[k]).replace('.', ',');
+    range.addEventListener('input', () => { params[k] = Number(range.value); box.value = String(params[k]).replace('.', ','); box.removeAttribute('aria-invalid'); saveGraphState(); drawGraph(); });
+    box.addEventListener('input', () => {
+      const v = Number(box.value.trim().replace(',', '.').replace('−', '-'));
+      if (box.value.trim() === '' || !Number.isFinite(v)) { box.setAttribute('aria-invalid', 'true'); return; }
+      box.removeAttribute('aria-invalid'); params[k] = v; range.value = v; saveGraphState(); drawGraph();
+    });
+  }
+  // настройки вида
+  const gpoints = $('#gpoints'), gwidth = $('#gwidth'), ggrid = $('#ggrid'), glegend = $('#glegend');
+  gpoints.value = String(opts.points); gwidth.value = String(opts.width); ggrid.checked = !!opts.grid; glegend.checked = !!opts.legend;
+  gpoints.addEventListener('change', () => { opts.points = gpoints.value; saveGraphState(); drawGraph(); });
+  gwidth.addEventListener('change', () => { opts.width = Number(gwidth.value); saveGraphState(); drawGraph(); });
+  ggrid.addEventListener('change', () => { opts.grid = ggrid.checked; saveGraphState(); drawGraph(); });
+  glegend.addEventListener('change', () => { opts.legend = glegend.checked; saveGraphState(); drawGraph(); });
 
   function setGraphError(e) {
     gerr.textContent = e ? e.message : '';
-    const map = { expr: gexpr, left: gleft, right: gright };
-    for (const k of Object.keys(map)) { if (e && e.field === k) map[k].setAttribute('aria-invalid', 'true'); else map[k].removeAttribute('aria-invalid'); }
+    const map = { left: gleft, right: gright, ymin: gymin, ymax: gymax };
+    fnRows.forEach((r, i) => { map['f' + i] = $(i === 0 ? '#gexpr' : '#gexpr' + (i + 1)); });
+    for (const k of Object.keys(map)) { if (!map[k]) continue; if (e && e.field === k) map[k].setAttribute('aria-invalid', 'true'); else map[k].removeAttribute('aria-invalid'); }
     if (e && map[e.field]) map[e.field].focus();
+  }
+  function optBound(input, label, field) {
+    return input.value.trim() === '' ? null : MathLib.parseBound(input.value, label, field);
   }
   function buildGraph() {
     try {
-      const c = MathLib.compile(gexpr.value, 'expr');
+      const fns = [];
+      fnRows.forEach((row, i) => {
+        if (!row.expr.trim() && fnRows.length > 1) return;          // пустые дополнительные строки пропускаем
+        try { fns.push({ fn: MathLib.compile(row.expr, 'f' + i, params).fn, row, idx: i }); }
+        catch (e) { if (e instanceof MathLib.ExprError) e.message = (fnRows.length > 1 ? 'f' + SUB[i] + ': ' : '') + e.message; throw e; }
+      });
       const a = MathLib.parseBound(gleft.value, 'Левая граница', 'left');
       const b = MathLib.parseBound(gright.value, 'Правая граница', 'right');
       if (!(a < b)) throw new MathLib.ExprError('Левая граница должна быть меньше правой', 'left');
       if (b - a < 1e-6) throw new MathLib.ExprError('Границы слишком близки друг к другу', 'right');
       if (Math.max(Math.abs(a), Math.abs(b)) > 1e9) throw new MathLib.ExprError('Границы слишком велики (по модулю не больше 1 000 000 000)', 'right');
+      const ymin = optBound(gymin, 'Нижняя граница y', 'ymin'), ymax = optBound(gymax, 'Верхняя граница y', 'ymax');
+      if (ymin !== null && ymax !== null && !(ymin < ymax)) throw new MathLib.ExprError('Нижняя граница y должна быть меньше верхней', 'ymin');
       setGraphError(null);
-      graph.model = { fn: c.fn, a, b }; graph.view = null;
-      store.set('graph.expr', gexpr.value); store.set('graph.left', gleft.value); store.set('graph.right', gright.value);
+      graph.model = { fns, a, b, ymin, ymax }; graph.view = null;
+      saveGraphState();
       drawGraph();
     } catch (e) {
       if (e instanceof MathLib.ExprError) setGraphError(e); else throw e;
@@ -1347,8 +1470,11 @@ const MathLib = (() => {
   }
   $('#gform').addEventListener('submit', (e) => { e.preventDefault(); buildGraph(); });
   document.querySelectorAll('.pchip').forEach((b) => b.addEventListener('click', () => {
-    gexpr.value = b.dataset.expr; gleft.value = b.dataset.a; gright.value = b.dataset.b; buildGraph();
+    fnRows = [{ expr: b.dataset.expr, color: (fnRows[0] && fnRows[0].color) || FN_COLORS[0] }];
+    gleft.value = b.dataset.a; gright.value = b.dataset.b; gymin.value = ''; gymax.value = '';
+    renderFnRows(); buildGraph();
   }));
+  renderFnRows();
 
   function drawGraph() {
     if (panelEls.graph.hidden) return;
@@ -1372,14 +1498,29 @@ const MathLib = (() => {
     }
     const px0 = GM.L, px1 = w - GM.R, py0 = GM.T, py1 = h - GM.B, pw = px1 - px0, ph = py1 - py0;
     if (pw < 60 || ph < 60) return;
-    const { fn, a, b } = m, v = graph.view;
+    const { fns, a, b } = m, v = graph.view;
     // без масштабирования левая и правая границы из формы лежат на краях поля:
     // при изменении размера окна меняется только масштаб, границы остаются на месте
     const xa = v ? v.xa : a, xb = v ? v.xb : b;
     const mapX = (x) => px0 + (x - xa) / (xb - xa) * pw;
-    const n = Math.max(2, Math.ceil(pw * 2)), ys = new Float64Array(n + 1);
-    for (let i = 0; i <= n; i++) ys[i] = MathLib.evalAt(fn, xa + (xb - xa) * i / n);
-    const rng = v ? { lo: v.ya, hi: v.yb } : MathLib.yRange(ys);
+    const n = opts.points === 'auto' ? Math.max(2, Math.ceil(pw * 2)) : Math.max(2, Number(opts.points));
+    const series = fns.map((f) => {
+      const ys = new Float64Array(n + 1);
+      for (let i = 0; i <= n; i++) ys[i] = MathLib.evalAt(f.fn, xa + (xb - xa) * i / n);
+      return ys;
+    });
+    let rng;
+    if (v) rng = { lo: v.ya, hi: v.yb };
+    else {
+      const all = new Float64Array(series.reduce((s, ys) => s + ys.length, 0));
+      let off = 0; for (const ys of series) { all.set(ys, off); off += ys.length; }
+      rng = MathLib.yRange(all);
+      if (m.ymin !== null || m.ymax !== null) {                   // границы y из формы
+        const lo = m.ymin !== null ? m.ymin : (rng ? rng.lo : m.ymax - 1);
+        const hi = m.ymax !== null ? m.ymax : (rng ? rng.hi : m.ymin + 1);
+        rng = lo < hi ? { lo, hi } : { lo: Math.min(lo, hi) - 1, hi: Math.max(lo, hi) + 1 };
+      }
+    }
     graph.cur = { xa, xb, lo: rng ? rng.lo : -1, hi: rng ? rng.hi : 1, px0, pw, py0, py1, ph };
 
     g.strokeStyle = ink3; g.globalAlpha = .45; g.lineWidth = 1; g.strokeRect(px0 + .5, py0 + .5, pw, ph); g.globalAlpha = 1;
@@ -1391,10 +1532,12 @@ const MathLib = (() => {
       const { lo, hi } = rng, mapY = (y) => py1 - (y - lo) / (hi - lo) * ph;
       const xt = MathLib.ticks(xa, xb, MathLib.niceStep(xb - xa, Math.max(2, Math.floor(pw / 80))));
       const yt = MathLib.ticks(lo, hi, MathLib.niceStep(hi - lo, Math.max(2, Math.floor(ph / 55))));
-      g.lineWidth = 1; g.strokeStyle = ink3; g.globalAlpha = .22;
-      for (const t of xt) { const X = Math.round(mapX(t)) + .5; line(X, py0, X, py1); }
-      for (const t of yt) { const Y = Math.round(mapY(t)) + .5; line(px0, Y, px1, Y); }
-      g.globalAlpha = 1;
+      if (opts.grid) {
+        g.lineWidth = 1; g.strokeStyle = ink3; g.globalAlpha = .22;
+        for (const t of xt) { const X = Math.round(mapX(t)) + .5; line(X, py0, X, py1); }
+        for (const t of yt) { const Y = Math.round(mapY(t)) + .5; line(px0, Y, px1, Y); }
+        g.globalAlpha = 1;
+      }
 
       const ax = (xa <= 0 && 0 <= xb) ? mapX(0) : px0, ay = (lo <= 0 && 0 <= hi) ? mapY(0) : py1;
       g.strokeStyle = ink2; g.fillStyle = ink2; g.lineWidth = 1.5;
@@ -1428,26 +1571,46 @@ const MathLib = (() => {
         for (const bx of [a, b]) if (bx > xa && bx < xb) line(mapX(bx), py0, mapX(bx), py1);
         g.setLineDash([]); g.globalAlpha = 1;
       }
-      g.strokeStyle = accent; g.lineWidth = 2.4; g.lineJoin = 'round'; g.lineCap = 'round';
-      g.beginPath();
-      let pen = false, prev = 0;
       const viewH = hi - lo;
-      for (let i = 0; i <= n; i++) {
-        const y = ys[i];
-        if (!Number.isFinite(y)) { pen = false; continue; }              // разрыв: функция не определена
-        const X = mapX(xa + (xb - xa) * i / n), Y = Math.max(-1e5, Math.min(1e5, mapY(y)));
-        if (!pen || Math.abs(y - prev) > 1.5 * viewH) g.moveTo(X, Y); else g.lineTo(X, Y);   // скачок (полюс): линию не тянем
-        pen = true; prev = y;
-      }
-      g.stroke();
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      fns.forEach((f, k) => {
+        const ys = series[k];
+        g.strokeStyle = f.row.color; g.lineWidth = opts.width + .4;
+        g.beginPath();
+        let pen = false, prev = 0;
+        for (let i = 0; i <= n; i++) {
+          const y = ys[i];
+          if (!Number.isFinite(y)) { pen = false; continue; }            // разрыв: функция не определена
+          const X = mapX(xa + (xb - xa) * i / n), Y = Math.max(-1e5, Math.min(1e5, mapY(y)));
+          if (!pen || Math.abs(y - prev) > 1.5 * viewH) g.moveTo(X, Y); else g.lineTo(X, Y);   // скачок (полюс): линию не тянем
+          pen = true; prev = y;
+        }
+        g.stroke();
+      });
       if (graph.hoverX !== null && graph.hoverX >= xa && graph.hoverX <= xb) {
-        const hx = mapX(graph.hoverX), hy = MathLib.evalAt(fn, graph.hoverX);
+        const hx = mapX(graph.hoverX);
         g.strokeStyle = ink3; g.lineWidth = 1; g.setLineDash([4, 4]); line(hx, py0, hx, py1); g.setLineDash([]);
-        if (Number.isFinite(hy) && hy >= lo && hy <= hi) {
-          g.fillStyle = accent; g.strokeStyle = c('--ink'); g.beginPath(); g.arc(hx, mapY(hy), 4.5, 0, Math.PI * 2); g.fill(); g.stroke();
+        for (const f of fns) {
+          const hy = MathLib.evalAt(f.fn, graph.hoverX);
+          if (Number.isFinite(hy) && hy >= lo && hy <= hi) {
+            g.fillStyle = f.row.color; g.strokeStyle = c('--ink'); g.lineWidth = 1;
+            g.beginPath(); g.arc(hx, mapY(hy), 4.5, 0, Math.PI * 2); g.fill(); g.stroke();
+          }
         }
       }
       g.restore();
+
+      if (opts.legend) {                                          // легенда: цвет и формула каждой функции
+        g.font = '12.5px ' + family;
+        const labels = fns.map((f) => 'f' + SUB[f.idx] + '(x) = ' + (f.row.expr.length > 42 ? f.row.expr.slice(0, 41) + '…' : f.row.expr.trim()));
+        const lw = Math.min(pw - 20, Math.max(...labels.map((s) => g.measureText(s).width)) + 40), lh = 18 * labels.length + 10;
+        g.fillStyle = c('--sheet'); g.globalAlpha = .9; g.fillRect(px0 + 8, py0 + 8, lw, lh); g.globalAlpha = 1;
+        labels.forEach((s, k) => {
+          const yy = py0 + 8 + 14 + 18 * k;
+          g.strokeStyle = fns[k].row.color; g.lineWidth = 3; line(px0 + 16, yy - 4, px0 + 34, yy - 4);
+          g.fillStyle = c('--ink'); g.textAlign = 'left'; g.fillText(s, px0 + 40, yy);
+        });
+      }
     }
     // края видимой области подписаны внизу (без масштабирования — это границы из формы)
     g.strokeStyle = accent; g.fillStyle = accent; g.lineWidth = 1.5; g.font = 'bold 13px ' + family;
@@ -1529,8 +1692,12 @@ const MathLib = (() => {
     const [px] = localXY(e);
     if (px < c.px0 || px > c.px0 + c.pw) return clearHover();
     graph.hoverX = c.xa + (px - c.px0) / c.pw * (c.xb - c.xa);
-    const y = MathLib.evalAt(m.fn, graph.hoverX);
-    ghoverXY.textContent = 'x = ' + MathLib.fmt(Number(graph.hoverX.toPrecision(6))) + '    f(x) = ' + (Number.isFinite(y) ? MathLib.fmt(y) : 'не определена');
+    const parts = [el('span', null, 'x = ' + MathLib.fmt(Number(graph.hoverX.toPrecision(6))))];
+    for (const f of m.fns) {
+      const y = MathLib.evalAt(f.fn, graph.hoverX), s = el('b', null, '   f' + SUB[f.idx] + ' = ' + (Number.isFinite(y) ? MathLib.fmt(y) : 'не определена'));
+      s.style.color = f.row.color; parts.push(s);
+    }
+    ghoverXY.replaceChildren(...parts);
     if (!drag) drawGraph();
   });
   const endDrag = () => { drag = null; gcanvas.classList.remove('dragging'); };

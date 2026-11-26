@@ -44,5 +44,11 @@ t('нет значений → null', rng('ln(x)', -5, -1) === null);
 t('шаг сетки и деления', JSON.stringify(M.ticks(-3, 18, 5)) === '[0,5,10,15]' && JSON.stringify(M.ticks(0, 0.5, 0.1)) === '[0,0.1,0.2,0.3,0.4,0.5]');
 t('fmt', M.fmt(-3) === '−3' && M.fmt(1.5) === '1,5' && M.fmt(0) === '0' && M.fmt(12000000) === '1,2e7');
 
+const env = { a: 2, b: 3, c: 1 };
+const pf = M.compile('a*sin(b*x)+c', 'expr', env).fn;
+t('параметры a, b, c', close(pf(1), 2 * Math.sin(3) + 1));
+env.a = 0; t('параметр меняется без повторного разбора', close(pf(1), 1));
+t('без env «a» неизвестно', (() => { try { M.compile('a*x'); return false; } catch (e) { return /Неизвестное имя/.test(e.message); } })());
+
 if (fails) { console.log('ПРОВАЛ: ' + fails); process.exit(1); }
 console.log('OK: математика графика');
