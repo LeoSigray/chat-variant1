@@ -268,7 +268,16 @@
   .gerr:empty { display: none; }
   .gwrap { position: relative; flex: 1 1 auto; min-height: 220px; border-radius: 18px; background: var(--field); border: 1px solid var(--field-line); box-shadow: inset 0 1px 3px rgba(40,100,190,.14); overflow: hidden; }
   .gwrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  .ghover { min-height: 20px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .ghover { min-height: 20px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; }
+  .ghint { color: var(--ink-3); font-size: 12px; }
+  .gwrap canvas { cursor: grab; }
+  .gwrap canvas.dragging { cursor: grabbing; }
+  .gwrap canvas:focus-visible { outline: 3px solid rgba(10,132,255,.55); outline-offset: -3px; border-radius: 18px; }
+  .gtools { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--sheet); border: 1px solid var(--glass-line); box-shadow: 0 8px 18px -12px rgba(30,90,170,.5); }
+  .gtools button { min-width: 32px; height: 30px; padding: 0 9px; border: 0; border-radius: 10px; background: none; color: var(--link); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .gtools button[data-zoom="in"], .gtools button[data-zoom="out"] { font-size: 18px; line-height: 1; }
+  .gtools button:hover { background: var(--hover); }
+  .gtools button:focus-visible { outline: 3px solid rgba(10,132,255,.55); outline-offset: 1px; }
 
   @media (max-width: 760px) {
     :root { --radius: 24px; }
@@ -410,8 +419,19 @@
           <button class="pchip" type="button" data-expr="sin(x)/x" data-a="-20" data-b="20">sin(x)/x</button>
         </div>
         <div class="gerr" id="gerr" role="alert" aria-live="polite"></div>
-        <div class="gwrap" id="gwrap"><canvas id="gcanvas" role="img" aria-label="График функции"></canvas></div>
-        <div class="ghover" id="ghover"></div>
+        <div class="gwrap" id="gwrap">
+          <canvas id="gcanvas" tabindex="0" role="img" aria-label="График функции. Колесо мыши — масштаб, перетаскивание — сдвиг, двойной щелчок — сброс"></canvas>
+          <div class="gtools" role="toolbar" aria-label="Масштаб графика">
+            <button type="button" data-zoom="in" title="Приблизить (колесо мыши, +)" aria-label="Приблизить">+</button>
+            <button type="button" data-zoom="out" title="Отдалить (колесо мыши, −)" aria-label="Отдалить">−</button>
+            <button type="button" data-zoom="wide" title="Растянуть по горизонтали (Shift + колесо)">Шире</button>
+            <button type="button" data-zoom="narrow" title="Сжать по горизонтали (Shift + колесо)">Уже</button>
+            <button type="button" data-zoom="taller" title="Растянуть по вертикали (Option/Alt + колесо)">Выше</button>
+            <button type="button" data-zoom="shorter" title="Сжать по вертикали (Option/Alt + колесо)">Ниже</button>
+            <button type="button" data-zoom="reset" title="Вернуть границы из формы (двойной щелчок, 0)">Сброс</button>
+          </div>
+        </div>
+        <div class="ghover" id="ghover"><span id="ghoverXY"></span><span class="ghint">Колесо — приблизить/отдалить · Shift + колесо — шире/уже · Option + колесо — по вертикали · перетаскивание — сдвиг · двойной щелчок — сброс</span></div>
       </section>
     </div>
   </section>
@@ -1297,8 +1317,9 @@ const MathLib = (() => {
   });
 
   /* ---------- график функции: расчёт и рисование выполняются здесь, в клиенте ---------- */
-  const gexpr = $('#gexpr'), gleft = $('#gleft'), gright = $('#gright'), gerr = $('#gerr'), gwrap = $('#gwrap'), gcanvas = $('#gcanvas'), ghover = $('#ghover');
-  const graph = { model: null, hoverX: null };
+  const gexpr = $('#gexpr'), gleft = $('#gleft'), gright = $('#gright'), gerr = $('#gerr'), gwrap = $('#gwrap'), gcanvas = $('#gcanvas'), ghoverXY = $('#ghoverXY');
+  // view — видимая область после масштабирования/сдвига; null — границы из формы и авто-масштаб по Y
+  const graph = { model: null, hoverX: null, view: null, cur: null };
   const GM = { L: 18, R: 28, T: 18, B: 40 };                  // поля вокруг поля графика
   gexpr.value = store.get('graph.expr', gexpr.value); gleft.value = store.get('graph.left', gleft.value); gright.value = store.get('graph.right', gright.value);
 
@@ -1317,7 +1338,7 @@ const MathLib = (() => {
       if (b - a < 1e-6) throw new MathLib.ExprError('Границы слишком близки друг к другу', 'right');
       if (Math.max(Math.abs(a), Math.abs(b)) > 1e9) throw new MathLib.ExprError('Границы слишком велики (по модулю не больше 1 000 000 000)', 'right');
       setGraphError(null);
-      graph.model = { fn: c.fn, a, b };
+      graph.model = { fn: c.fn, a, b }; graph.view = null;
       store.set('graph.expr', gexpr.value); store.set('graph.left', gleft.value); store.set('graph.right', gright.value);
       drawGraph();
     } catch (e) {
@@ -1343,6 +1364,7 @@ const MathLib = (() => {
     const line = (x1, y1, x2, y2) => { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); };
     g.textBaseline = 'alphabetic';
     const m = graph.model;
+    graph.cur = null;
     if (!m) {
       g.fillStyle = ink3; g.font = '14px ' + family; g.textAlign = 'center';
       g.fillText('Введите функцию и границы, затем нажмите «Построить»', w / 2, h / 2);
@@ -1350,28 +1372,31 @@ const MathLib = (() => {
     }
     const px0 = GM.L, px1 = w - GM.R, py0 = GM.T, py1 = h - GM.B, pw = px1 - px0, ph = py1 - py0;
     if (pw < 60 || ph < 60) return;
-    const { fn, a, b } = m;
-    // левая и правая границы всегда лежат на краях поля: при изменении размера окна меняется только масштаб
-    const mapX = (x) => px0 + (x - a) / (b - a) * pw;
+    const { fn, a, b } = m, v = graph.view;
+    // без масштабирования левая и правая границы из формы лежат на краях поля:
+    // при изменении размера окна меняется только масштаб, границы остаются на месте
+    const xa = v ? v.xa : a, xb = v ? v.xb : b;
+    const mapX = (x) => px0 + (x - xa) / (xb - xa) * pw;
     const n = Math.max(2, Math.ceil(pw * 2)), ys = new Float64Array(n + 1);
-    for (let i = 0; i <= n; i++) ys[i] = MathLib.evalAt(fn, a + (b - a) * i / n);
-    const rng = MathLib.yRange(ys);
+    for (let i = 0; i <= n; i++) ys[i] = MathLib.evalAt(fn, xa + (xb - xa) * i / n);
+    const rng = v ? { lo: v.ya, hi: v.yb } : MathLib.yRange(ys);
+    graph.cur = { xa, xb, lo: rng ? rng.lo : -1, hi: rng ? rng.hi : 1, px0, pw, py0, py1, ph };
 
     g.strokeStyle = ink3; g.globalAlpha = .45; g.lineWidth = 1; g.strokeRect(px0 + .5, py0 + .5, pw, ph); g.globalAlpha = 1;
 
     if (!rng) {
       g.fillStyle = ink2; g.font = '14px ' + family; g.textAlign = 'center';
-      g.fillText('Функция не определена на отрезке [' + MathLib.fmt(a) + '; ' + MathLib.fmt(b) + ']', w / 2, py0 + ph / 2);
+      g.fillText('Функция не определена на отрезке [' + MathLib.fmt(xa) + '; ' + MathLib.fmt(xb) + ']', w / 2, py0 + ph / 2);
     } else {
       const { lo, hi } = rng, mapY = (y) => py1 - (y - lo) / (hi - lo) * ph;
-      const xt = MathLib.ticks(a, b, MathLib.niceStep(b - a, Math.max(2, Math.floor(pw / 80))));
+      const xt = MathLib.ticks(xa, xb, MathLib.niceStep(xb - xa, Math.max(2, Math.floor(pw / 80))));
       const yt = MathLib.ticks(lo, hi, MathLib.niceStep(hi - lo, Math.max(2, Math.floor(ph / 55))));
       g.lineWidth = 1; g.strokeStyle = ink3; g.globalAlpha = .22;
       for (const t of xt) { const X = Math.round(mapX(t)) + .5; line(X, py0, X, py1); }
       for (const t of yt) { const Y = Math.round(mapY(t)) + .5; line(px0, Y, px1, Y); }
       g.globalAlpha = 1;
 
-      const ax = (a <= 0 && 0 <= b) ? mapX(0) : px0, ay = (lo <= 0 && 0 <= hi) ? mapY(0) : py1;
+      const ax = (xa <= 0 && 0 <= xb) ? mapX(0) : px0, ay = (lo <= 0 && 0 <= hi) ? mapY(0) : py1;
       g.strokeStyle = ink2; g.fillStyle = ink2; g.lineWidth = 1.5;
       line(px0, ay, px1, ay); line(ax, py1, ax, py0);
       g.beginPath(); g.moveTo(px1 + 8, ay); g.lineTo(px1, ay - 4); g.lineTo(px1, ay + 4); g.closePath(); g.fill();
@@ -1398,6 +1423,11 @@ const MathLib = (() => {
       g.textAlign = 'left'; g.fillText('y', ax + 9, py0 + 11);
 
       g.save(); g.beginPath(); g.rect(px0, py0, pw, ph); g.clip();
+      if (v) {                                                     // границы из формы — пунктиром
+        g.strokeStyle = accent; g.globalAlpha = .55; g.lineWidth = 1.2; g.setLineDash([6, 5]);
+        for (const bx of [a, b]) if (bx > xa && bx < xb) line(mapX(bx), py0, mapX(bx), py1);
+        g.setLineDash([]); g.globalAlpha = 1;
+      }
       g.strokeStyle = accent; g.lineWidth = 2.4; g.lineJoin = 'round'; g.lineCap = 'round';
       g.beginPath();
       let pen = false, prev = 0;
@@ -1405,12 +1435,12 @@ const MathLib = (() => {
       for (let i = 0; i <= n; i++) {
         const y = ys[i];
         if (!Number.isFinite(y)) { pen = false; continue; }              // разрыв: функция не определена
-        const X = mapX(a + (b - a) * i / n), Y = Math.max(-1e5, Math.min(1e5, mapY(y)));
+        const X = mapX(xa + (xb - xa) * i / n), Y = Math.max(-1e5, Math.min(1e5, mapY(y)));
         if (!pen || Math.abs(y - prev) > 1.5 * viewH) g.moveTo(X, Y); else g.lineTo(X, Y);   // скачок (полюс): линию не тянем
         pen = true; prev = y;
       }
       g.stroke();
-      if (graph.hoverX !== null && graph.hoverX >= a && graph.hoverX <= b) {
+      if (graph.hoverX !== null && graph.hoverX >= xa && graph.hoverX <= xb) {
         const hx = mapX(graph.hoverX), hy = MathLib.evalAt(fn, graph.hoverX);
         g.strokeStyle = ink3; g.lineWidth = 1; g.setLineDash([4, 4]); line(hx, py0, hx, py1); g.setLineDash([]);
         if (Number.isFinite(hy) && hy >= lo && hy <= hi) {
@@ -1419,23 +1449,103 @@ const MathLib = (() => {
       }
       g.restore();
     }
-    // границы выводимого участка — на своих местах по краям поля
+    // края видимой области подписаны внизу (без масштабирования — это границы из формы)
     g.strokeStyle = accent; g.fillStyle = accent; g.lineWidth = 1.5; g.font = 'bold 13px ' + family;
     line(px0, py1, px0, py1 + 7); line(px1, py1, px1, py1 + 7);
-    g.textAlign = 'left'; g.fillText(MathLib.fmt(a), px0, h - 8);
-    g.textAlign = 'right'; g.fillText(MathLib.fmt(b), px1, h - 8);
+    g.textAlign = 'left'; g.fillText(MathLib.fmt(Number(xa.toPrecision(6))), px0, h - 8);
+    g.textAlign = 'right'; g.fillText(MathLib.fmt(Number(xb.toPrecision(6))), px1, h - 8);
+    if (v) { g.textAlign = 'center'; g.font = '12px ' + family; g.fillStyle = ink3; g.fillText('масштаб изменён · «Сброс» — вернуть границы', (px0 + px1) / 2, h - 8); }
   }
-  gcanvas.addEventListener('pointermove', (e) => {
-    const m = graph.model; if (!m) return;
-    const r = gcanvas.getBoundingClientRect(), px0 = GM.L, pw = r.width - GM.L - GM.R, px = e.clientX - r.left;
-    if (px < px0 || px > px0 + pw) return clearHover();
-    graph.hoverX = m.a + (px - px0) / pw * (m.b - m.a);
-    const y = MathLib.evalAt(m.fn, graph.hoverX);
-    ghover.textContent = 'x = ' + MathLib.fmt(graph.hoverX) + '    f(x) = ' + (Number.isFinite(y) ? MathLib.fmt(y) : 'не определена');
+
+  /* ---------- масштабирование и сдвиг графика ---------- */
+  function ensureView() {
+    const c = graph.cur;
+    if (!graph.view) graph.view = { xa: c.xa, xb: c.xb, ya: c.lo, yb: c.hi };
+    return graph.view;
+  }
+  // fx, fy < 1 — приблизить (растянуть), > 1 — отдалить (сжать); точка (px, py) остаётся под курсором
+  function zoomAt(px, py, fx, fy) {
+    const c = graph.cur; if (!graph.model || !c) return;
+    const v = ensureView();
+    const x0 = v.xa + (px - c.px0) / c.pw * (v.xb - v.xa), y0 = v.ya + (c.py1 - py) / c.ph * (v.yb - v.ya);
+    const ok = (span) => span > 1e-9 && span < 1e12;
+    if (ok((v.xb - v.xa) * fx)) { v.xa = x0 - (x0 - v.xa) * fx; v.xb = x0 + (v.xb - x0) * fx; }
+    if (ok((v.yb - v.ya) * fy)) { v.ya = y0 - (y0 - v.ya) * fy; v.yb = y0 + (v.yb - y0) * fy; }
     drawGraph();
+  }
+  function panBy(dx, dy) {                                         // сдвиг в пикселях
+    const c = graph.cur; if (!graph.model || !c) return;
+    const v = ensureView(), sx = (v.xb - v.xa) / c.pw, sy = (v.yb - v.ya) / c.ph;
+    v.xa -= dx * sx; v.xb -= dx * sx; v.ya += dy * sy; v.yb += dy * sy;
+    drawGraph();
+  }
+  function resetView() { graph.view = null; drawGraph(); }
+  const center = () => { const c = graph.cur; return c ? [c.px0 + c.pw / 2, c.py0 + c.ph / 2] : [0, 0]; };
+  const STEP = 1.25;
+  document.querySelectorAll('.gtools button').forEach((btn) => btn.addEventListener('click', () => {
+    const [cx, cy] = center();
+    switch (btn.dataset.zoom) {
+      case 'in': return zoomAt(cx, cy, 1 / STEP, 1 / STEP);
+      case 'out': return zoomAt(cx, cy, STEP, STEP);
+      case 'wide': return zoomAt(cx, cy, 1 / STEP, 1);
+      case 'narrow': return zoomAt(cx, cy, STEP, 1);
+      case 'taller': return zoomAt(cx, cy, 1, 1 / STEP);
+      case 'shorter': return zoomAt(cx, cy, 1, STEP);
+      default: return resetView();
+    }
+  }));
+  const localXY = (e) => { const r = gcanvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  gcanvas.addEventListener('wheel', (e) => {
+    if (!graph.model) return;
+    e.preventDefault();
+    const dy = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 16 : 1);
+    const k = Math.exp(Math.max(-0.5, Math.min(0.5, dy * (e.ctrlKey ? 0.01 : 0.0015))));
+    const [px, py] = localXY(e);
+    zoomAt(px, py, e.altKey ? 1 : k, e.shiftKey ? 1 : k);          // Shift — только по x, Alt — только по y
+  }, { passive: false });
+  let gestureScale = 1;                                            // щипок на тачпаде Mac (WebKit)
+  gcanvas.addEventListener('gesturestart', (e) => { e.preventDefault(); gestureScale = 1; });
+  gcanvas.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    const k = gestureScale / e.scale; gestureScale = e.scale;
+    const [px, py] = localXY(e); zoomAt(px, py, k, k);
   });
-  function clearHover() { if (graph.hoverX === null) return; graph.hoverX = null; ghover.textContent = ''; drawGraph(); }
-  gcanvas.addEventListener('pointerleave', clearHover);
+  gcanvas.addEventListener('gestureend', (e) => e.preventDefault());
+
+  let drag = null;
+  gcanvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !graph.model) return;
+    drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    try { gcanvas.setPointerCapture(e.pointerId); } catch (err) {}
+    gcanvas.classList.add('dragging');
+  });
+  gcanvas.addEventListener('pointermove', (e) => {
+    const m = graph.model, c = graph.cur; if (!m || !c) return;
+    if (drag && drag.id === e.pointerId) {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (dx || dy) panBy(dx, dy);
+    }
+    const [px] = localXY(e);
+    if (px < c.px0 || px > c.px0 + c.pw) return clearHover();
+    graph.hoverX = c.xa + (px - c.px0) / c.pw * (c.xb - c.xa);
+    const y = MathLib.evalAt(m.fn, graph.hoverX);
+    ghoverXY.textContent = 'x = ' + MathLib.fmt(Number(graph.hoverX.toPrecision(6))) + '    f(x) = ' + (Number.isFinite(y) ? MathLib.fmt(y) : 'не определена');
+    if (!drag) drawGraph();
+  });
+  const endDrag = () => { drag = null; gcanvas.classList.remove('dragging'); };
+  gcanvas.addEventListener('pointerup', endDrag);
+  gcanvas.addEventListener('pointercancel', endDrag);
+  gcanvas.addEventListener('dblclick', resetView);
+  gcanvas.addEventListener('keydown', (e) => {
+    const [cx, cy] = center(), s = 40;
+    const act = { '+': () => zoomAt(cx, cy, 1 / STEP, 1 / STEP), '=': () => zoomAt(cx, cy, 1 / STEP, 1 / STEP), '-': () => zoomAt(cx, cy, STEP, STEP),
+                  '_': () => zoomAt(cx, cy, STEP, STEP), '0': resetView, ArrowLeft: () => panBy(s, 0), ArrowRight: () => panBy(-s, 0),
+                  ArrowUp: () => panBy(0, s), ArrowDown: () => panBy(0, -s) }[e.key];
+    if (act) { e.preventDefault(); act(); }
+  });
+  function clearHover() { if (graph.hoverX === null) return; graph.hoverX = null; ghoverXY.textContent = ''; drawGraph(); }
+  gcanvas.addEventListener('pointerleave', () => { if (!drag) clearHover(); });
   let gRaf = 0;
   new ResizeObserver(() => { cancelAnimationFrame(gRaf); gRaf = requestAnimationFrame(drawGraph); }).observe(gwrap);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawGraph);
